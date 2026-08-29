@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+--> statement-breakpoint
 CREATE TYPE "public"."notification_type" AS ENUM('post_published', 'post_failed', 'post_scheduled_reminder', 'token_expiring', 'token_expired', 'daily_digest', 'system');--> statement-breakpoint
 CREATE TYPE "public"."org_member_role" AS ENUM('owner', 'admin', 'member', 'approver', 'contributor', 'viewer');--> statement-breakpoint
 CREATE TYPE "public"."platform_name" AS ENUM('facebook', 'instagram', 'x', 'tiktok', 'youtube', 'threads', 'bluesky', 'pinterest', 'gmb', 'linkedin', 'mastodon', 'reddit', 'discord', 'telegram', 'tumblr', 'snapchat');--> statement-breakpoint

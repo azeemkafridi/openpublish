@@ -10,6 +10,7 @@ import { checkDailyApiQuota } from '@lib/rate-limit';
 import { getClientIp } from '@lib/http/client-ip';
 import { createLogger } from '@lib/logger';
 import { normalizeRole } from '@lib/team/permissions';
+import { isCloudProxiedPath, proxyToCloud, cloudApiUrl } from '@lib/engine';
 
 const requestLogger = createLogger('request');
 
@@ -273,6 +274,30 @@ export const onRequest = defineMiddleware(async (context, next) => {
         organizationRole: authContext.organizationRole,
         scopes: authContext.scopes,
       };
+
+      // ENGINE=cloud: the publishing API surface is served by the BulkPublish
+      // cloud with the operator's API key. Runs AFTER local auth, so only
+      // authenticated members of this instance ever reach the proxy. Channel
+      // connect is the exception — OAuth must run on the cloud origin.
+      if (isCloudProxiedPath(pathname)) {
+        if (pathname.startsWith('/api/channels/connect')) {
+          const response = new Response(
+            JSON.stringify({
+              error: {
+                message: `In cloud mode, connect channels at ${cloudApiUrl()}/channels — they appear here automatically.`,
+                code: 'CLOUD_CONNECT_EXTERNAL',
+              },
+            }),
+            { status: 400, headers: { 'Content-Type': 'application/json' } },
+          );
+          logRequest(shouldLog, { method, path: pathname, status: 400, duration: Date.now() - start, ip, type: 'cloud-proxy', userId: authContext.userId });
+          return response;
+        }
+        const response = await proxyToCloud(context.request, pathname, context.url.search);
+        logRequest(shouldLog, { method, path: pathname, status: response.status, duration: Date.now() - start, ip, type: 'cloud-proxy', userId: authContext.userId });
+        return finalizeResponse(response);
+      }
+
       const response = await next();
       const finalResponse = await finalizeResponse(response);
       logRequest(shouldLog, { method, path: pathname, status: response.status, duration: Date.now() - start, ip, type: 'api', userId: authContext.userId });

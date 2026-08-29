@@ -25,6 +25,10 @@ process.on('uncaughtException', (error) => {
 });
 
 async function main() {
+  if (process.env.ENGINE === 'cloud') {
+    logger.info('ENGINE=cloud — publishing runs in the BulkPublish cloud; local workers are not needed. Exiting.');
+    return;
+  }
   logger.info('Starting openPublish workers...');
 
   // Register platform handlers
