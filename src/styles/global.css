@@ -53,7 +53,7 @@ input, textarea, select {
 :root {
   /* Typography */
   --font-display: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'DM Mono', 'SF Mono', monospace;
   --font-numeric: 'Inter', 'DM Sans', system-ui, sans-serif;
 
@@ -86,30 +86,30 @@ input, textarea, select {
   --tracking-wide: 0.04em;
   --tracking-wider: 0.08em;
 
-  /* Core palette — subtle warm neutrals */
+  /* Core palette — cool neutrals (openPublish "One" token set, 4pt grid app) */
   --stone-50: #FAFAFA;
-  --stone-100: #F5F5F4;
-  --stone-150: #EFEFED;
-  --stone-200: #E7E5E4;
-  --stone-300: #D6D3D1;
-  --stone-400: #A8A29E;
-  --stone-500: #78716C;
-  --stone-600: #57534E;
-  --stone-700: #3D3830;
-  --stone-800: #222222;
-  --stone-900: #1A1A1A;
+  --stone-100: #F4F4F5;
+  --stone-150: #EEEEF0;
+  --stone-200: #E4E4E7;
+  --stone-300: #D4D4D8;
+  --stone-400: #A1A1AA;
+  --stone-500: #71717A;
+  --stone-600: #52525B;
+  --stone-700: #3F3F46;
+  --stone-800: #27272A;
+  --stone-900: #18181B;
 
-  /* Accent — warm orange */
-  --accent-50: #FFF4E6;
-  --accent-100: #FFE4C4;
-  --accent-200: #FFCE96;
-  --accent-300: #FFB564;
-  --accent-400: #FF9A36;
-  --accent-500: #FA8112;
-  --accent-600: #E06D00;
-  --accent-700: #B85A00;
-  --accent-800: #8C4500;
-  --accent-900: #663300;
+  /* Accent — deep teal: calm, tool-like, unmistakably not the cloud product */
+  --accent-50: #F0FDFA;
+  --accent-100: #CCFBF1;
+  --accent-200: #99F6E4;
+  --accent-300: #5EEAD4;
+  --accent-400: #2DD4BF;
+  --accent-500: #0D9488;
+  --accent-600: #0F766E;
+  --accent-700: #115E59;
+  --accent-800: #134E4A;
+  --accent-900: #0F3D3A;
 
   /* Semantic colors — softer, muted tones */
   --color-success: #4ADE80;
@@ -119,7 +119,7 @@ input, textarea, select {
      dot/accent tone and fails contrast as body text. Mirrors the -text variants
      the error and warning scales already have. */
   --color-success-text: #166534;
-  --color-error: #ff0000;
+  --color-error: #DC2626;
   --color-error-bg: #FEF7F7;
   --color-error-border: #FEE2E2;
   --color-error-text: #B91C1C;

@@ -288,7 +288,7 @@ export default function Sidebar({ currentPath, userName, userEmail, userRole, or
             paddingLeft: isCollapsed ? 0 : '12px',
           }}
         >
-          <img src="/assets/logo.svg" alt="openPublish" width="32" height="20" style={{ flexShrink: 0 }} />
+          <img src="/assets/logo.svg" alt="openPublish" width="28" height="28" style={{ flexShrink: 0 }} />
         </a>
       </div>
 
