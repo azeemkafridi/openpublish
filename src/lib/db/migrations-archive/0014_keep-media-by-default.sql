@@ -1,0 +1,1 @@
+ALTER TABLE "posts" ALTER COLUMN "delete_media_after_publish" SET DEFAULT false;

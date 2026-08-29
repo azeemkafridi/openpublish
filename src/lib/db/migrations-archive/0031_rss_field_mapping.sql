@@ -1,0 +1,1 @@
+ALTER TABLE "rss_feeds" ADD COLUMN "field_mapping" jsonb;

@@ -1,0 +1,1 @@
+ALTER TABLE "collected_items" ADD COLUMN "schema_org" jsonb;

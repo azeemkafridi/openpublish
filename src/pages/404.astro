@@ -1,0 +1,76 @@
+---
+import '../styles/global.css';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <title>Page Not Found — openPublish</title>
+  </head>
+  <body>
+    <div class="not-found-shell">
+      <div class="not-found-card">
+        <a href="/" style="display: inline-block; margin-bottom: 24px;">
+          <img src="/assets/logo.svg" alt="openPublish" width="36" height="22" />
+        </a>
+        <h1 class="not-found-title">Page not found</h1>
+        <p class="not-found-desc">The page you're looking for doesn't exist or has been moved.</p>
+        <a href="/" class="not-found-link">Go to homepage</a>
+      </div>
+    </div>
+    <style>
+      html, body {
+        height: 100%;
+        overflow: auto;
+      }
+      .not-found-shell {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--stone-50, #FAFAF9);
+        padding: 24px;
+      }
+      .not-found-card {
+        text-align: center;
+        max-width: 400px;
+      }
+      .not-found-title {
+        font-family: var(--font-display, 'Inter', sans-serif);
+        font-size: var(--text-2xl, 1.75rem);
+        font-weight: 600;
+        color: var(--stone-900, #1C1917);
+        margin-bottom: 8px;
+      }
+      .not-found-desc {
+        font-family: var(--font-body, 'DM Sans', sans-serif);
+        font-size: var(--text-sm, 0.8125rem);
+        color: var(--stone-500, #78716C);
+        line-height: 1.5;
+        margin-bottom: 24px;
+      }
+      .not-found-link {
+        display: inline-block;
+        font-family: var(--font-body, 'DM Sans', sans-serif);
+        font-size: var(--text-sm, 0.8125rem);
+        font-weight: 600;
+        color: #FFFFFF;
+        background: var(--accent-500, #F97316);
+        padding: 8px 20px;
+        border-radius: 50px;
+        text-decoration: none;
+        transition: background 150ms;
+      }
+      .not-found-link:hover {
+        background: var(--accent-600, #EA580C);
+      }
+    </style>
+  </body>
+</html>

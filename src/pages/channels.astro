@@ -1,0 +1,33 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import { ChannelList } from '../components/channels/ChannelList';
+import {
+  getHiddenPlatforms,
+  getAllPlatformAvailability,
+  getAllPlatformVariantAvailability,
+} from '../lib/platforms/availability';
+
+// Per-platform availability (`PLATFORM_<NAME>` flags + app-credential presence).
+// `hiddenPlatforms` are dropped from the connect grid entirely (kill-switched, or
+// no OAuth app registered yet) — but only when the user has no channels on them,
+// so existing accounts stay manageable. Everything else renders with its state so
+// the grid can show "Paused"/"Unavailable" and explain why.
+// `variantAvailability` covers sub-platforms gated separately from their parent
+// (LinkedIn company pages) so the Company Page buttons can pause on their own
+// while personal-profile connect stays live.
+// Role-aware: an `admin_only` platform (staged rollout) is visible and fully
+// enabled for global site admins, hidden for everyone else.
+const siteRole = Astro.locals.auth?.user?.role ?? null;
+const hiddenPlatforms = getHiddenPlatforms(siteRole);
+const platformAvailability = getAllPlatformAvailability(siteRole);
+const variantAvailability = getAllPlatformVariantAvailability();
+---
+
+<AppLayout title="Channels" hideRightPanel>
+  <ChannelList
+    client:idle
+    hiddenPlatforms={hiddenPlatforms}
+    platformAvailability={platformAvailability}
+    variantAvailability={variantAvailability}
+  />
+</AppLayout>

@@ -1,0 +1,8 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import MediaLibrary from '../components/media/MediaLibrary';
+---
+
+<AppLayout title="Media Library" hideRightPanel>
+  <MediaLibrary client:idle />
+</AppLayout>

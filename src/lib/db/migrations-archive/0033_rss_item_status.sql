@@ -1,0 +1,1 @@
+ALTER TABLE "rss_feed_items" ADD COLUMN "status" varchar(10) DEFAULT 'posted' NOT NULL;

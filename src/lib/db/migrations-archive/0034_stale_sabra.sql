@@ -1,0 +1,1 @@
+CREATE INDEX "posts_org_created_idx" ON "posts" USING btree ("organization_id","created_at" DESC NULLS LAST);

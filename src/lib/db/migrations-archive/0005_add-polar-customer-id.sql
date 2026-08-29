@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "polar_customer_id" varchar(255);

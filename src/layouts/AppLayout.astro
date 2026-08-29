@@ -1,0 +1,239 @@
+---
+import '../styles/global.css';
+import Sidebar from '../components/layout/Sidebar';
+import Header from '../components/layout/Header';
+import NotificationBell from '../components/notifications/NotificationBell';
+
+interface Props {
+  title: string;
+  description?: string;
+  breadcrumb?: string;
+  hideRightPanel?: boolean;
+  hideNotificationBell?: boolean;
+  showSettingsLink?: boolean;
+  fullWidth?: boolean;
+}
+
+const {
+  title,
+  description,
+  breadcrumb,
+  hideRightPanel = false,
+  hideNotificationBell = false,
+  showSettingsLink = false,
+  fullWidth = false,
+} = Astro.props;
+
+const hasCustomSidebar = Astro.slots.has('sidebar');
+
+const currentPath = Astro.url.pathname;
+const { user, organizationId, organizationName, organizationPlan } = Astro.locals.auth ?? {};
+
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet" />
+    <title>{title} — openPublish</title>
+  </head>
+  <body>
+    <!-- Mobile header (visible on mobile only) -->
+    <div class="mobile-header" id="mobile-header">
+      <button class="mobile-menu-toggle" id="mobile-menu-btn" aria-label="Open menu">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="4" y1="6" x2="20" y2="6" />
+          <line x1="4" y1="12" x2="20" y2="12" />
+          <line x1="4" y1="18" x2="20" y2="18" />
+        </svg>
+      </button>
+      <a href="/overview" class="mobile-logo" aria-label="openPublish">
+        <img src="/assets/logo.svg" alt="openPublish" height="22" />
+      </a>
+      <div class="mobile-header-bell">
+        <NotificationBell client:idle />
+      </div>
+    </div>
+
+    <!-- Sidebar overlay (mobile only) -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <div class:list={['app-shell', { 'no-right-panel': hideRightPanel }]}>
+      <aside class="app-sidebar" id="app-sidebar">
+        <Sidebar
+          client:idle
+          currentPath={currentPath}
+          userName={user?.name || 'Admin'}
+          userEmail={user?.email || ''}
+          userRole={user?.role || 'user'}
+          organizationId={organizationId}
+          organizationName={organizationName}
+          organizationPlan={organizationPlan}
+        />
+      </aside>
+
+      <main class="app-main">
+        <Header
+          client:idle
+          breadcrumb={breadcrumb || title}
+          pageTitle={title}
+          hideRightPanel={hideRightPanel}
+          hideNotificationBell={hideNotificationBell}
+          showSettingsLink={showSettingsLink}
+        />
+        <div class:list={['app-main-content', { 'app-main-content--full': fullWidth }]}>
+          <div class="page-header animate-fade-in-up">
+            <h1 class="page-title">{title}</h1>
+            {description && <p class="page-description">{description}</p>}
+          </div>
+          <slot />
+        </div>
+      </main>
+
+      {!hideRightPanel && (
+        <aside class="app-right-panel">
+          <slot name="sidebar" />
+        </aside>
+      )}
+    </div>
+
+    <style>
+      /* Let the announcement banner sit above the 100vh app shell without
+         pushing it off-screen: body becomes the viewport box, shell flexes. */
+      body {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        height: 100dvh;
+        overflow: hidden;
+      }
+      .app-shell {
+        flex: 1;
+        height: auto !important;
+        min-height: 0;
+      }
+
+      .no-right-panel {
+        grid-template-columns: var(--sidebar-width) 1fr !important;
+      }
+      .no-right-panel[data-sidebar-collapsed="true"] {
+        grid-template-columns: 56px 1fr !important;
+      }
+
+      /* Mobile header styles */
+      .mobile-header {
+        display: none;
+      }
+
+      .mobile-logo {
+        display: flex;
+        align-items: center;
+        text-decoration: none;
+      }
+      .mobile-logo img {
+        height: 22px;
+        width: auto;
+        display: block;
+      }
+
+      @media (max-width: 1024px) {
+        .no-right-panel {
+          grid-template-columns: var(--sidebar-width) 1fr !important;
+        }
+        .no-right-panel[data-sidebar-collapsed="true"] {
+          grid-template-columns: 56px 1fr !important;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .mobile-header {
+          display: flex;
+        }
+
+        .no-right-panel {
+          grid-template-columns: 1fr !important;
+        }
+        .no-right-panel[data-sidebar-collapsed="true"] {
+          grid-template-columns: 1fr !important;
+        }
+      }
+    </style>
+
+    <script>
+      // Product analytics: one page_view per app page load (see src/lib/track.ts)
+      import { trackPageView } from '../lib/track';
+      trackPageView();
+    </script>
+
+    <script is:inline>
+      // Restore collapse states from localStorage before paint
+      (function() {
+        var shell = document.querySelector('.app-shell');
+        if (!shell) return;
+        if (localStorage.getItem('sidebar-collapsed') === 'true') {
+          shell.setAttribute('data-sidebar-collapsed', 'true');
+        }
+        if (localStorage.getItem('right-panel-collapsed') === 'true') {
+          shell.setAttribute('data-right-collapsed', 'true');
+        }
+      })();
+
+      // Mobile menu toggle functionality
+      document.addEventListener('DOMContentLoaded', function() {
+        var menuBtn = document.getElementById('mobile-menu-btn');
+        var sidebar = document.getElementById('app-sidebar');
+        var overlay = document.getElementById('sidebar-overlay');
+
+        function openMobileMenu() {
+          sidebar.classList.add('mobile-open');
+          overlay.classList.add('active');
+          document.body.style.overflow = 'hidden';
+        }
+
+        function closeMobileMenu() {
+          sidebar.classList.remove('mobile-open');
+          overlay.classList.remove('active');
+          document.body.style.overflow = '';
+        }
+
+        if (menuBtn) {
+          menuBtn.addEventListener('click', openMobileMenu);
+        }
+
+        if (overlay) {
+          overlay.addEventListener('click', closeMobileMenu);
+        }
+
+        // Close menu when clicking a nav link on mobile
+        if (sidebar) {
+          sidebar.addEventListener('click', function(e) {
+            var link = e.target.closest('a[href]');
+            if (link && window.innerWidth <= 640) {
+              closeMobileMenu();
+            }
+          });
+        }
+
+        // Close menu on escape key
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') {
+            closeMobileMenu();
+          }
+        });
+
+        // Close menu when resizing to desktop
+        window.addEventListener('resize', function() {
+          if (window.innerWidth > 640) {
+            closeMobileMenu();
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

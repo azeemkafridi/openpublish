@@ -1,0 +1,12 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import { PostList } from '../../components/posts/PostList';
+import { RepeatSchedulesList } from '../../components/schedules/RepeatSchedulesList';
+---
+
+<AppLayout title="Repeat Posts" hideRightPanel>
+  {/* Every schedule, including API/MCP-created ones that have no template
+      post and therefore never appear in the post list below. */}
+  <RepeatSchedulesList client:idle />
+  <PostList automationsOnly client:idle />
+</AppLayout>

@@ -1,0 +1,1193 @@
+/* ============================================================
+   BulkPublish — Warm Editorial Design System
+   A refined publishing dashboard with warmth and precision
+   ============================================================ */
+
+/* Fonts loaded via <link> in layouts — see AppLayout.astro / BlogLayout.astro */
+
+/* ---- Reset ---- */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+ul, ol {
+  list-style: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ---- Design Tokens ---- */
+:root {
+  /* Typography */
+  --font-display: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'DM Mono', 'SF Mono', monospace;
+  --font-numeric: 'Inter', 'DM Sans', system-ui, sans-serif;
+
+  /* Font sizes — modular scale */
+  --text-xs: 0.6875rem;   /* 11px */
+  --text-sm: 0.8125rem;   /* 13px */
+  --text-base: 0.875rem;  /* 14px */
+  --text-md: 0.9375rem;   /* 15px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.375rem;    /* 22px */
+  --text-2xl: 1.75rem;    /* 28px */
+  --text-3xl: 2.25rem;    /* 36px */
+
+  /* Font weights */
+  --weight-light: 300;
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Line heights */
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  /* Letter spacing */
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+  --tracking-wider: 0.08em;
+
+  /* Core palette — subtle warm neutrals */
+  --stone-50: #FAFAFA;
+  --stone-100: #F5F5F4;
+  --stone-150: #EFEFED;
+  --stone-200: #E7E5E4;
+  --stone-300: #D6D3D1;
+  --stone-400: #A8A29E;
+  --stone-500: #78716C;
+  --stone-600: #57534E;
+  --stone-700: #3D3830;
+  --stone-800: #222222;
+  --stone-900: #1A1A1A;
+
+  /* Accent — warm orange */
+  --accent-50: #FFF4E6;
+  --accent-100: #FFE4C4;
+  --accent-200: #FFCE96;
+  --accent-300: #FFB564;
+  --accent-400: #FF9A36;
+  --accent-500: #FA8112;
+  --accent-600: #E06D00;
+  --accent-700: #B85A00;
+  --accent-800: #8C4500;
+  --accent-900: #663300;
+
+  /* Semantic colors — softer, muted tones */
+  --color-success: #4ADE80;
+  --color-success-bg: #F0FDF4;
+  --color-success-border: #BBF7D0;
+  /* Readable green for text on --color-success-bg; --color-success itself is a
+     dot/accent tone and fails contrast as body text. Mirrors the -text variants
+     the error and warning scales already have. */
+  --color-success-text: #166534;
+  --color-error: #ff0000;
+  --color-error-bg: #FEF7F7;
+  --color-error-border: #FEE2E2;
+  --color-error-text: #B91C1C;
+  --color-warning: #FBBF24;
+  --color-warning-bg: #FFFBEB;
+  --color-warning-border: #FDE68A;
+  --color-warning-text: #92400E;
+  --color-info: #60A5FA;
+  /* Plan badge (business tier) — used in admin + settings badges */
+  --plan-business-bg: #EDE9FE;
+  --plan-business-text: #5B21B6;
+  --color-info-bg: #EFF6FF;
+  --color-info-border: #BFDBFE;
+  --color-scheduled: #6366F1;
+  --color-scheduled-bg: #F8F8FC;
+  --color-scheduled-border: #E5E5EB;
+
+  /* Card pastels */
+  --card-pink: #FEE2E2;
+  --card-green: #D1FAE5;
+  --card-yellow: #FEF3C7;
+  --card-blue: #DBEAFE;
+  --card-lavender: #EDE9FE;
+  --card-beige: #FEF9E7;
+
+  /* Layout */
+  --sidebar-width: 240px;
+  --sidebar-collapsed-width: 0px;
+  --right-panel-width: 290px;
+  --header-height: 56px;
+  --layout-gap: 0px;
+
+  /* Surfaces — neutral and calm */
+  --surface-body: #F7F7F7;
+  --surface-sidebar: #FAFAFA;
+  --surface-main: #FFFFFF;
+  --surface-card: #FAFAFA;
+  --surface-overlay: rgba(34, 34, 34, 0.4);
+
+  /* Pastel surfaces — very subtle */
+  --surface-cream:    #FAFAFA;
+  --surface-warm:     #F8F8F8;
+  --surface-lavender: #FAFAFC;
+  --surface-mint:     #F9FAFA;
+  --surface-blue:     #F9FAFC;
+  --surface-peach:    #FCFAFA;
+  --surface-rose:     #FCFAFA;
+
+  /* Borders — disabled */
+  --border-subtle: transparent;
+  --border-default: transparent;
+  --border-strong: transparent;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-xl: none;
+
+  /* Control heights */
+  --control-height-sm: 32px;
+  --control-height-md: 40px;
+  --control-height-lg: 46px;
+
+  /* Transitions */
+  --transition-fast: 120ms ease;
+  --transition-base: 180ms ease;
+  --transition-smooth: 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Z-index scale */
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+}
+
+/* ---- Base ---- */
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: var(--weight-normal);
+  line-height: var(--leading-normal);
+  color: var(--stone-800);
+  background: var(--surface-card);
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  color: var(--stone-900);
+}
+
+h1 { font-size: var(--text-2xl); }
+h2 { font-size: var(--text-xl); }
+h3 { font-size: var(--text-lg); }
+h4 { font-size: var(--text-md); }
+
+p {
+  line-height: var(--leading-relaxed);
+  color: var(--stone-600);
+}
+
+::selection {
+  background: var(--accent-100);
+  color: var(--accent-900);
+}
+
+/* Focus */
+:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Scrollbar styling — hidden by default, visible on hover */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: var(--radius-pill);
+  transition: background 200ms ease;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+*:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+*:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.12) transparent;
+}
+
+/* ---- Layout ---- */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr var(--right-panel-width);
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  transition: grid-template-columns 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Collapsed states */
+.app-shell[data-sidebar-collapsed="true"] {
+  grid-template-columns: 56px 1fr var(--right-panel-width);
+}
+
+.app-shell[data-right-collapsed="true"] {
+  grid-template-columns: var(--sidebar-width) 1fr 0px;
+}
+
+.app-shell[data-sidebar-collapsed="true"][data-right-collapsed="true"] {
+  grid-template-columns: 56px 1fr 0px;
+}
+
+.app-sidebar {
+  background: var(--surface-sidebar);
+  display: flex;
+  flex-direction: column;
+  /* Fill the shell row, NOT the viewport. The announcement banner is an
+     in-flow sibling above .app-shell, so a hard 100dvh here pushed the bottom
+     of the sidebar (the account/profile menu) below the fold whenever the
+     banner was showing. */
+  height: 100%;
+  min-height: 0;
+  overflow: visible;
+  position: relative;
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-shell[data-sidebar-collapsed="true"] .app-sidebar {
+  overflow: visible;
+}
+
+.app-main {
+  background: var(--surface-main);
+  display: flex;
+  flex-direction: column;
+  /* See .app-sidebar — sized by the shell row, not the viewport. */
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  /* Bottom frame padding lives inside the scroll container (.app-main-content)
+     instead, so a scrolled page's last element keeps the same breathing room
+     below it as the first element has above — otherwise it butts against the
+     scroll fold. */
+  padding: 40px 48px 0;
+}
+
+/* A column so a page that wants to fill the frame (the calendar grid) can say
+   `flex: 1` and get the space left AFTER the page header — `height: 100%` there
+   resolved against the whole scroll container, so the page started below the
+   header and then ran 40px+ past the bottom padding. That is what made Calendar
+   look like it had a top margin and no bottom one. */
+.app-main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-width: 1024px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 4px 40px;
+}
+
+/* Ordinary pages are content-sized: never let the column squeeze them. */
+.app-main-content > * {
+  flex-shrink: 0;
+}
+
+.app-main-content--full {
+  max-width: none;
+}
+
+.app-right-panel {
+  background: var(--surface-sidebar);
+  /* See .app-sidebar — sized by the shell row, not the viewport. */
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 16px;
+}
+
+.app-shell[data-right-collapsed="true"] .app-right-panel {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Collapse toggle buttons */
+.panel-collapse-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: none;
+  color: var(--stone-400);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+.panel-collapse-toggle:hover {
+  background: var(--stone-100);
+  color: var(--stone-600);
+}
+
+/* ---- Auth Layout ---- */
+.auth-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--stone-100);
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-shell::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -20%;
+  width: 60vw;
+  height: 60vw;
+  background: radial-gradient(circle, var(--accent-50) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.auth-shell::after {
+  content: '';
+  position: absolute;
+  bottom: -30%;
+  left: -15%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, var(--card-yellow) 0%, transparent 70%);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.auth-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface-main);
+  border-radius: var(--radius-2xl);
+  padding: 48px 40px;
+  animation: authFadeIn 600ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes authFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.auth-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 36px;
+}
+
+.auth-title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  color: var(--stone-900);
+  margin-bottom: 8px;
+}
+
+.auth-subtitle {
+  font-size: var(--text-sm);
+  color: var(--stone-500);
+  margin-bottom: 32px;
+}
+
+.auth-card .input {
+  background: var(--stone-100);
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: var(--stone-400);
+  font-size: var(--text-sm);
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--stone-200);
+}
+
+/* ---- Utility Classes ---- */
+
+/* Text */
+.text-xs { font-size: var(--text-xs); }
+.text-sm { font-size: var(--text-sm); }
+.text-base { font-size: var(--text-base); }
+.text-md { font-size: var(--text-md); }
+.text-lg { font-size: var(--text-lg); }
+.text-xl { font-size: var(--text-xl); }
+.text-2xl { font-size: var(--text-2xl); }
+.text-3xl { font-size: var(--text-3xl); }
+
+.text-primary { color: var(--stone-900); }
+.text-secondary { color: var(--stone-600); }
+.text-muted { color: var(--stone-500); }
+.text-faint { color: var(--stone-400); }
+
+.font-display { font-family: var(--font-display); }
+.font-body { font-family: var(--font-body); }
+.font-numeric { font-family: var(--font-numeric); font-variant-numeric: tabular-nums; }
+
+.font-light { font-weight: var(--weight-light); }
+.font-normal { font-weight: var(--weight-normal); }
+.font-medium { font-weight: var(--weight-medium); }
+.font-semibold { font-weight: var(--weight-semibold); }
+.font-bold { font-weight: var(--weight-bold); }
+
+.uppercase {
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--stone-400);
+}
+
+/* Spacing */
+.gap-xs { gap: 4px; }
+.gap-sm { gap: 8px; }
+.gap-md { gap: 12px; }
+.gap-lg { gap: 16px; }
+.gap-xl { gap: 24px; }
+.gap-2xl { gap: 32px; }
+
+/* Status badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.badge-success {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+.badge-success .badge-dot { background: var(--color-success); }
+
+.badge-error {
+  background: var(--color-error-bg);
+  color: #B91C1C;
+}
+.badge-error .badge-dot { background: var(--color-error); }
+
+.badge-warning {
+  background: var(--color-warning-bg);
+  color: #A16207;
+}
+.badge-warning .badge-dot { background: var(--color-warning); }
+
+.badge-info {
+  background: var(--color-info-bg);
+  color: #1D4ED8;
+}
+.badge-info .badge-dot { background: var(--color-info); }
+
+.badge-scheduled {
+  background: var(--color-scheduled-bg);
+  color: #4338CA;
+}
+.badge-scheduled .badge-dot { background: var(--color-scheduled); }
+
+/* Cards */
+.card {
+  background: var(--surface-card);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  border: 2px solid var(--surface-card);
+}
+
+/* Stacked card lists — remove inner border-radius between adjacent cards */
+.stacked-cards > .card {
+  border: none;
+}
+.stacked-cards > .card + .card {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.stacked-cards > .card:has(+ .card) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--control-height-md);
+  padding: 0 20px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-pill);
+  transition: all var(--transition-base);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.btn-primary {
+  background: #222222;
+  color: white;
+}
+.btn-primary:hover {
+  background: #3D3830;
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: var(--surface-main);
+  color: var(--stone-700);
+}
+.btn-secondary:hover {
+  background: var(--stone-50);
+}
+
+.btn-ghost {
+  color: var(--stone-500);
+  padding: 6px 10px;
+}
+.btn-ghost:hover {
+  background: var(--stone-100);
+  color: var(--stone-700);
+}
+
+.btn-active {
+  background: var(--stone-100);
+  color: var(--stone-700);
+  font-weight: 600;
+}
+.btn-active:hover {
+  background: var(--stone-150);
+}
+
+.btn-sm {
+  height: var(--control-height-sm);
+  padding: 0 14px;
+  font-size: var(--text-xs);
+}
+
+.btn-lg {
+  height: var(--control-height-lg);
+  padding: 0 28px;
+  font-size: var(--text-md);
+}
+
+/* Form elements */
+.input {
+  width: 100%;
+  height: 42px;
+  padding: 0 16px;
+  font-size: var(--text-base);
+  color: var(--stone-800);
+  background: var(--surface-main);
+  border: none;
+  border-radius: var(--radius-xl);
+  transition: box-shadow var(--transition-base);
+}
+
+.input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-50);
+}
+
+.blog-editor .input,
+.blog-editor textarea,
+.blog-editor input[type="text"],
+.blog-editor input[type="date"] {
+  background: var(--surface-card);
+}
+
+.input::placeholder {
+  color: var(--stone-400);
+}
+
+textarea.input {
+  height: auto;
+  padding: 10px 14px;
+}
+
+.label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--stone-700);
+  margin-bottom: 6px;
+}
+
+/* Page structure */
+.page-header {
+  margin-bottom: 40px;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  color: var(--accent-500);
+  margin-bottom: 6px;
+  letter-spacing: var(--tracking-tight);
+}
+
+/* With no description the title is the last thing in the header, and its 6px
+   used to collapse out through the header's bottom edge. .app-main-content is
+   a flex column now, where margins do not collapse — zero it so the gap under
+   every page title stays exactly the 40px it has always been. */
+.page-title:last-child {
+  margin-bottom: 0;
+}
+
+.page-description {
+  font-size: var(--text-sm);
+  color: var(--stone-400);
+  line-height: var(--leading-relaxed);
+}
+
+/* Section titles within pages */
+.section-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--stone-800);
+  margin-bottom: 16px;
+}
+
+/* ---- Animations ---- */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes popoverIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 400ms ease both;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 500ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.animate-slide-in {
+  animation: slideInLeft 400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* Stagger children */
+.stagger-children > * {
+  animation: fadeInUp 400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 40ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 80ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 160ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 200ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 280ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 320ms; }
+.stagger-children > *:nth-child(9) { animation-delay: 360ms; }
+.stagger-children > *:nth-child(10) { animation-delay: 400ms; }
+
+/* ---- Responsive Breakpoints ---- */
+
+/* Mobile hamburger toggle - hidden by default */
+.mobile-menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--stone-600);
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-fast);
+}
+
+.mobile-menu-toggle:hover {
+  background: var(--stone-100);
+  color: var(--stone-800);
+}
+
+/* Mobile sidebar overlay */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--surface-overlay);
+  z-index: var(--z-overlay);
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.sidebar-overlay.active {
+  opacity: 1;
+}
+
+/* Mobile sidebar state */
+.app-sidebar.mobile-open {
+  transform: translateX(0);
+}
+
+/* Mobile header - hidden by default on desktop */
+.mobile-header {
+  display: none;
+}
+
+/* Tablet: 640px - 1024px */
+@media (max-width: 1024px) {
+  :root {
+    --right-panel-width: 0px;
+  }
+
+  .app-shell {
+    grid-template-columns: var(--sidebar-width) 1fr 0px;
+  }
+
+  .app-shell[data-sidebar-collapsed="true"] {
+    grid-template-columns: 56px 1fr 0px;
+  }
+
+  .app-right-panel {
+    display: none;
+  }
+
+  .app-main {
+    padding: 24px 24px 0;
+    height: 100%;
+  }
+}
+
+/* Mobile: < 640px */
+@media (max-width: 640px) {
+  :root {
+    --sidebar-width: 280px;
+    --right-panel-width: 0px;
+  }
+
+  .app-shell {
+    grid-template-columns: 1fr;
+    position: relative;
+  }
+
+  .app-shell[data-sidebar-collapsed="true"] {
+    grid-template-columns: 1fr;
+  }
+
+  .app-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--sidebar-width);
+    z-index: var(--z-modal);
+    transform: translateX(-100%);
+    transition: transform var(--transition-smooth);
+    /* The drawer is its own scroll container on phones: the nav plus the account
+       block is taller than a short viewport, and without this the user menu at
+       the bottom was simply unreachable. */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .app-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    display: block;
+    pointer-events: none;
+  }
+
+  .sidebar-overlay.active {
+    pointer-events: auto;
+  }
+
+  .mobile-menu-toggle {
+    display: flex;
+  }
+
+  .app-right-panel {
+    display: none;
+  }
+
+  .app-main {
+    padding: 16px;
+    padding-bottom: 0;
+    height: 100%;
+  }
+
+  /* Keep the last element clear of the home indicator / gesture bar. */
+  .app-main-content {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Mobile header bar. In flow (not fixed) so it stacks *below* the
+     announcement banner instead of painting over it — body is the viewport
+     box and .app-main-content is the scroller, so it still never scrolls
+     away. .app-main therefore needs no padding-top to clear it. */
+  .mobile-header {
+    position: relative;
+    flex-shrink: 0;
+    height: 56px;
+    background: var(--surface-main);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    z-index: var(--z-sticky);
+    border-bottom: none;
+  }
+
+  /* The notification bell lives in the mobile header (top-right); hide the
+     desktop header's copy so it isn't shown twice on small screens. */
+  .header-desktop-bell {
+    display: none;
+  }
+
+  .page-header {
+    margin-bottom: 20px;
+  }
+
+  .page-title {
+    font-size: var(--text-xl);
+  }
+
+  /* Cards stack full width on mobile */
+  .card {
+    border-radius: var(--radius-md);
+  }
+
+  /* Auth layout adjustments */
+  .auth-card {
+    margin: 16px;
+    padding: 32px 24px;
+    border-radius: var(--radius-xl);
+  }
+}
+
+/* Small mobile: < 375px */
+@media (max-width: 375px) {
+  .app-main {
+    padding: 12px;
+    padding-bottom: 0;
+  }
+
+  .page-title {
+    font-size: var(--text-lg);
+  }
+
+  .auth-card {
+    padding: 24px 16px;
+  }
+}
+
+/* ============================================================
+   Responsive Component Overrides
+   Classes that override inline styles at breakpoints.
+   Use !important because inline styles have highest specificity.
+   ============================================================ */
+
+/* Tablet: <= 1024px */
+@media (max-width: 1024px) {
+  /* Stats grids: 4-col → 2-col */
+  .r-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Feed + Top Performing: 2-col → 1-col */
+  .r-overview-feed-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 2-column sections: keep 2-col at tablet */
+
+  /* Charts row: side by side → stacked */
+  .r-charts-row {
+    flex-direction: column !important;
+  }
+
+  /* Channels layout: sidebar + grid → stacked */
+  .r-channels-wrap {
+    flex-direction: column !important;
+  }
+
+  /* Channel connected sidebar: full width */
+  .r-channel-sidebar {
+    width: 100% !important;
+  }
+
+  /* Channel grid: 3-col → 2-col at tablet */
+  .r-channel-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Platform reference grid: 3-col → 2-col */
+  .r-platform-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* API stat value: never let a long string ("Never", a date) blow the card open. */
+.r-api-stat-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Post-type selector renders as pills on desktop; the dropdown is mobile-only. */
+.r-format-select { display: none; }
+
+/* Compose row: stack at tablet */
+@media (max-width: 900px) {
+  .r-compose-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Mobile: <= 640px */
+@media (max-width: 640px) {
+  /* 2-column sections → 1-col */
+  .r-3-col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Channel grid: → 1-col on mobile */
+  .r-channel-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Platform reference grid: → 1-col on mobile */
+  .r-platform-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Calendar top bar: stack controls */
+  .r-calendar-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .r-calendar-bar > div {
+    justify-content: center !important;
+  }
+
+  /* Composer toolbar: stack on mobile; action buttons go vertical + full-width */
+  .r-compose-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 12px !important;
+  }
+  .r-compose-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+  .r-compose-actions > button,
+  .r-compose-actions > a {
+    width: 100% !important;
+  }
+
+  /* Post-type: pills → dropdown (full width) */
+  .r-format-pills { display: none !important; }
+  .r-format-select { display: block !important; width: 100% !important; }
+
+  /* Format icons take the full width; the Connect CTA goes full-width underneath */
+  .r-format-iconrow {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .r-format-action { width: 100% !important; justify-content: stretch !important; }
+  .r-format-action > a,
+  .r-format-action > button { width: 100% !important; }
+
+  /* Bulk per-post override rows: picker drops below the toggle on mobile */
+  .r-bulk-override { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+
+  /* Media grid: smaller minimums */
+  .r-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+  }
+
+  /* Table horizontal scroll */
+  .r-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .r-table-scroll table {
+    min-width: 480px;
+  }
+
+  /* Report date inputs: narrower */
+  .r-date-input {
+    width: 110px !important;
+  }
+
+  /* API stat cards: the display-size value overflowed a half-width card
+     ("Never" rendered as "Ne"). Shrink the type and tighten the padding. */
+  .r-api-stat-card {
+    padding: 16px !important;
+    gap: 10px !important;
+  }
+  .r-api-stat-value {
+    font-size: 28px !important;
+  }
+}
+
+/* Small mobile: <= 375px */
+@media (max-width: 375px) {
+  .r-stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .r-platform-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .r-media-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

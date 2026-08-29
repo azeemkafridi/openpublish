@@ -1,0 +1,15 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import ApiKeyManager from '../components/settings/ApiKeyManager';
+import ApiOverview, { ApiLimits } from '../components/api/ApiOverview';
+---
+
+<AppLayout title="API" hideRightPanel>
+  <ApiOverview client:idle />
+  <div style="margin-top: 16px;">
+    <ApiKeyManager client:idle />
+  </div>
+  <div style="margin-top: 4px;">
+    <ApiLimits client:idle />
+  </div>
+</AppLayout>

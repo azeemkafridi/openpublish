@@ -1,0 +1,10 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import SettingsForm from '../components/settings/SettingsForm';
+---
+
+<AppLayout title="Settings" hideRightPanel>
+  <div style="display: flex; flex-direction: column; gap: 32px;">
+    <SettingsForm client:idle />
+  </div>
+</AppLayout>

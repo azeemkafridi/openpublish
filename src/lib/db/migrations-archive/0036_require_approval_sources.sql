@@ -1,0 +1,2 @@
+ALTER TABLE "recurring_schedules" ADD COLUMN "require_approval" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "rss_feeds" ADD COLUMN "require_approval" boolean DEFAULT false NOT NULL;

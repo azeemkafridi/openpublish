@@ -1,0 +1,272 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1771180667431,
+      "tag": "0000_add-missing-indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1771339678469,
+      "tag": "0001_misty_brood",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1771421663726,
+      "tag": "0002_familiar_butterfly",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1771440643572,
+      "tag": "0003_real_mysterio",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1771536048829,
+      "tag": "0004_cascade-delete-user",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1771540539697,
+      "tag": "0005_add-polar-customer-id",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1772553600000,
+      "tag": "0006_add-mastodon",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1774695120250,
+      "tag": "0007_thin_nemesis",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1774696018735,
+      "tag": "0008_high_kree",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1775056423273,
+      "tag": "0009_familiar_omega_flight",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777124691224,
+      "tag": "0010_add-x-api-usage",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1777128287540,
+      "tag": "0011_add-x-credits",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1777131932172,
+      "tag": "0012_add-polar-processed-orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1779522713901,
+      "tag": "0013_add-needs-reconnect",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1779557799165,
+      "tag": "0014_keep-media-by-default",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1781124821765,
+      "tag": "0015_add_perf_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1781156342994,
+      "tag": "0016_add_recurring_schedule_fk",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1781240821022,
+      "tag": "0017_add-collected-items",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781247557670,
+      "tag": "0018_collect-defuddle-fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1781248380552,
+      "tag": "0019_add-announcements",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781248943591,
+      "tag": "0020_collect-schema-org",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1781250248204,
+      "tag": "0021_collect-capture-mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1781291782154,
+      "tag": "0022_collect-highlights",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1781292387085,
+      "tag": "0023_announcement-link",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1781377017688,
+      "tag": "0024_collect-media",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1781448676051,
+      "tag": "0025_add_reddit_discord_telegram_platforms",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1782373413256,
+      "tag": "0026_add_ai_credit_dcents",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1782414344858,
+      "tag": "0027_team_invitations_and_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1783000000000,
+      "tag": "0028_remove_daily_digest",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1784294852282,
+      "tag": "0029_channel_sets",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1784295283119,
+      "tag": "0030_rss_feeds",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1784370306980,
+      "tag": "0031_rss_field_mapping",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1784389026333,
+      "tag": "0032_rss_polling_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1784389928950,
+      "tag": "0033_rss_item_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1784545556963,
+      "tag": "0034_stale_sabra",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1784901297339,
+      "tag": "0035_post_approval_flow",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1784903653200,
+      "tag": "0036_require_approval_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1784990053200,
+      "tag": "0037_add_tumblr_platform",
+      "breakpoints": true
+    }
+  ]
+}

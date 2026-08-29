@@ -1,0 +1,1 @@
+ALTER TABLE "collected_items" ADD COLUMN "capture_mode" varchar(20) DEFAULT 'url' NOT NULL;

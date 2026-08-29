@@ -1,0 +1,26 @@
+---
+import { handleLinkedInPageCallback } from '../../../lib/oauth/handler';
+
+const url = Astro.url;
+const code = url.searchParams.get('code');
+const state = url.searchParams.get('state');
+const error = url.searchParams.get('error');
+
+if (error) {
+  return Astro.redirect(`/channels?error=${encodeURIComponent(error)}`);
+}
+
+if (!code || !state) {
+  return Astro.redirect('/channels?error=Invalid+callback+parameters');
+}
+
+const baseUrl = process.env.BASE_URL || url.origin;
+const redirectUri = `${baseUrl}/auth/callback/linkedin-page`;
+const result = await handleLinkedInPageCallback(code, state, redirectUri);
+
+if (result.success && result.sessionKey) {
+  return Astro.redirect(`/channels?linkedin_page_session=${encodeURIComponent(result.sessionKey)}`);
+} else {
+  return Astro.redirect(`/channels?error=${encodeURIComponent(result.error || 'Connection failed')}`);
+}
+---

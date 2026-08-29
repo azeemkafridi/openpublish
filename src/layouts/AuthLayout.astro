@@ -1,0 +1,111 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  subtitle?: string;
+}
+
+const { title = 'Sign In', subtitle = 'Sign in to manage your publishing channels.' } = Astro.props;
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <title>{title} — openPublish</title>
+  </head>
+  <body>
+    <div class="auth-shell">
+      <div class="auth-card">
+        <div class="auth-logo">
+          <a href="/" style="display: inline-block;">
+            <img src="/assets/logo.svg" alt="openPublish" width="36" height="22" />
+          </a>
+        </div>
+        <h1 class="auth-title">{title}</h1>
+        <p class="auth-subtitle">{subtitle}</p>
+        <slot />
+      </div>
+    </div>
+    <script>
+      // Product analytics: anonymous page_view on auth pages — the top of the
+      // signup funnel the mutation log never sees (see src/lib/track.ts)
+      import { trackPageView } from '../lib/track';
+      trackPageView();
+    </script>
+    <style is:global>
+      .auth-state {
+        text-align: center;
+        padding: 32px 16px;
+      }
+      .auth-state-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+      }
+      .auth-state-icon.success,
+      .auth-state-icon.info,
+      .auth-state-icon.error,
+      .auth-state-icon.warning {
+        background: var(--accent-50);
+        color: var(--accent-600);
+      }
+      .auth-state-title {
+        font-size: var(--text-md);
+        font-weight: var(--weight-semibold);
+        color: var(--stone-900);
+        margin: 0 0 8px;
+      }
+      .auth-state-desc {
+        font-size: var(--text-sm);
+        color: var(--stone-500);
+        margin: 0 0 24px;
+        line-height: 1.5;
+      }
+      .auth-error-box {
+        padding: 10px 14px;
+        border-radius: var(--radius-md);
+        background: var(--color-error-bg);
+        color: #991B1B;
+        font-size: var(--text-sm);
+        font-weight: var(--weight-medium);
+        margin-bottom: 16px;
+      }
+      .auth-state-link {
+        color: var(--accent-500);
+        text-decoration: underline;
+        font-size: var(--text-sm);
+      }
+      .btn-accent {
+        background: var(--accent-500);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+      }
+      .btn-accent:hover {
+        background: var(--accent-600);
+        transform: translateY(-1px);
+      }
+      .btn-accent:active {
+        transform: translateY(0);
+      }
+      @keyframes authSpin {
+        to { transform: rotate(360deg); }
+      }
+      .auth-spinner {
+        animation: authSpin 1s linear infinite;
+      }
+    </style>
+  </body>
+</html>

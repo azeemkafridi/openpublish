@@ -1,0 +1,8 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import NotificationList from '../components/notifications/NotificationList';
+---
+
+<AppLayout title="Notifications" hideRightPanel hideNotificationBell showSettingsLink>
+  <NotificationList client:idle />
+</AppLayout>

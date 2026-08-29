@@ -1,0 +1,8 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import OverviewDashboard from '../components/overview/OverviewDashboard';
+---
+
+<AppLayout title="Overview" hideRightPanel>
+  <OverviewDashboard client:load />
+</AppLayout>

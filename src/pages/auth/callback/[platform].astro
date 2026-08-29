@@ -1,0 +1,60 @@
+---
+import { handleOAuthCallback } from '../../../lib/oauth/handler';
+import { validateOAuthState } from '../../../lib/oauth/state';
+import type { PlatformName } from '../../../lib/platforms/types';
+
+const { platform } = Astro.params;
+const url = Astro.url;
+const code = url.searchParams.get('code');
+const state = url.searchParams.get('state');
+const error = url.searchParams.get('error');
+
+const validPlatforms: PlatformName[] = [
+  'instagram', 'x', 'tiktok', 'youtube',
+  'threads', 'pinterest', 'gmb', 'linkedin',
+  'mastodon', 'reddit', 'discord', 'tumblr', 'snapchat',
+];
+
+// Connects started from the mobile app carry source:'mobile' in the OAuth
+// state; those flows must land back in the app, not on /channels.
+const MOBILE_SCHEME = 'openpublish://oauth';
+
+if (error) {
+  // The user denied at the platform, so the state was never consumed by the
+  // token exchange — consume it here to learn where the flow started.
+  const stateData = state ? await validateOAuthState(state) : null;
+  const target = stateData?.metadata?.source === 'mobile'
+    ? `${MOBILE_SCHEME}?error=${encodeURIComponent(error)}`
+    : `/channels?error=${encodeURIComponent(error)}`;
+  return Astro.redirect(target);
+}
+
+if (!code || !state || !platform || !validPlatforms.includes(platform as PlatformName)) {
+  return Astro.redirect('/channels?error=Invalid+callback+parameters');
+}
+
+const baseUrl = process.env.BASE_URL || url.origin;
+const redirectUri = `${baseUrl}/auth/callback/${platform}`;
+const result = await handleOAuthCallback(
+  platform as PlatformName,
+  code,
+  state,
+  redirectUri,
+);
+
+const toMobile = result.source === 'mobile';
+
+if (result.success) {
+  return Astro.redirect(
+    toMobile
+      ? `${MOBILE_SCHEME}?connected=${platform}&account=${encodeURIComponent(result.accountName || '')}`
+      : `/channels?connected=${platform}&account=${encodeURIComponent(result.accountName || '')}`,
+  );
+} else {
+  return Astro.redirect(
+    toMobile
+      ? `${MOBILE_SCHEME}?error=${encodeURIComponent(result.error || 'Connection failed')}`
+      : `/channels?error=${encodeURIComponent(result.error || 'Connection failed')}`,
+  );
+}
+---

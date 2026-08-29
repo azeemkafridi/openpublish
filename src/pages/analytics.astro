@@ -1,0 +1,8 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import AnalyticsPage from '../components/analytics/AnalyticsPage';
+---
+
+<AppLayout title="Analytics" hideRightPanel>
+  <AnalyticsPage client:idle />
+</AppLayout>

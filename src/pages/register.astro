@@ -1,0 +1,209 @@
+---
+import AuthLayout from '../layouts/AuthLayout.astro';
+---
+
+<AuthLayout title="Create Account" subtitle="Start managing your publishing channels.">
+  <div id="invite-banner" style="display: none; padding: 10px 14px; border-radius: var(--radius-md); background: var(--accent-50); color: var(--accent-600); font-size: var(--text-sm); font-weight: var(--weight-medium); margin-bottom: 16px;"></div>
+  <div id="error-message" class="auth-error-box" style="display: none;"></div>
+  <div id="success-message" class="auth-state" style="display: none;">
+    <div class="auth-state-icon success">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <p class="auth-state-title">Account created!</p>
+    <p class="auth-state-desc">Check your email to verify your address, then sign in.</p>
+    <a href="/login" class="btn btn-accent btn-lg" style="text-decoration: none;">Sign In</a>
+  </div>
+  <div id="register-content">
+    <form id="register-form" style="display: flex; flex-direction: column; gap: 16px;">
+      <div>
+        <label class="label" for="name">Name</label>
+        <input
+          class="input"
+          type="text"
+          id="name"
+          name="name"
+          placeholder="Your name"
+          required
+          autocomplete="name"
+        />
+      </div>
+      <div>
+        <label class="label" for="email">Email</label>
+        <input
+          class="input"
+          type="email"
+          id="email"
+          name="email"
+          placeholder="you@example.com"
+          required
+          autocomplete="email"
+        />
+      </div>
+      <div>
+        <label class="label" for="password">Password</label>
+        <input
+          class="input"
+          type="password"
+          id="password"
+          name="password"
+          placeholder="At least 8 characters"
+          required
+          minlength="8"
+          autocomplete="new-password"
+        />
+      </div>
+      <button type="submit" class="btn btn-accent btn-lg" style="width: 100%; margin-top: 8px;">
+        Create Account
+      </button>
+    </form>
+
+    <div class="auth-divider">
+      <span>or continue with</span>
+    </div>
+
+    <button id="google-btn" type="button" class="btn btn-secondary btn-lg" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;">
+      <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
+        <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
+        <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/>
+        <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 2.58 9 3.58Z" fill="#EA4335"/>
+      </svg>
+      Sign up with Google
+    </button>
+
+    <div style="text-align: center; margin-top: 20px; font-size: var(--text-sm); color: var(--stone-500);">
+      Already have an account?
+      <a href="/login" class="auth-state-link">Sign in</a>
+    </div>
+  </div>
+
+  <script>
+    import { track } from '../lib/track';
+
+    const REGISTER_ERRORS: Record<string, string> = {
+      USER_ALREADY_EXISTS: 'An account with this email already exists. Try signing in instead.',
+      USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: 'An account with this email already exists. Try signing in instead.',
+      INVALID_EMAIL: 'Please enter a valid email address.',
+      INVALID_PASSWORD: 'Please enter a valid password.',
+      PASSWORD_TOO_SHORT: 'Password must be at least 8 characters.',
+      PASSWORD_TOO_LONG: 'Password is too long.',
+      FAILED_TO_CREATE_USER: 'Failed to create account. Please try again.',
+      FAILED_TO_CREATE_SESSION: 'Account created but sign-in failed. Please try signing in.',
+      TOO_MANY_REQUESTS: 'Too many attempts. Please wait a moment and try again.',
+    };
+
+    function extractError(data: any): string {
+      const message = data?.message || data?.error?.message;
+      const code = data?.code || data?.error?.code;
+      if (code && REGISTER_ERRORS[code]) return REGISTER_ERRORS[code];
+      if (message) return message;
+      return 'Failed to create account. Please try again.';
+    }
+
+    const form = document.getElementById('register-form') as HTMLFormElement;
+    const contentDiv = document.getElementById('register-content') as HTMLDivElement;
+    const errorDiv = document.getElementById('error-message') as HTMLDivElement;
+    const successDiv = document.getElementById('success-message') as HTMLDivElement;
+
+    // Team-invite context: prefill the invited email + nudge to use it.
+    const regParams = new URLSearchParams(window.location.search);
+    const regPrefillEmail = regParams.get('email');
+    if (regPrefillEmail) {
+      (form.querySelector('#email') as HTMLInputElement).value = regPrefillEmail;
+    }
+    if (regParams.get('invite') === '1') {
+      const banner = document.getElementById('invite-banner');
+      if (banner) {
+        banner.textContent = "Create your account to accept your team invitation. Use the email it was sent to so we can match it.";
+        banner.style.display = 'block';
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorDiv.style.display = 'none';
+      successDiv.style.display = 'none';
+
+      const name = (form.querySelector('#name') as HTMLInputElement).value;
+      const email = (form.querySelector('#email') as HTMLInputElement).value;
+      const password = (form.querySelector('#password') as HTMLInputElement).value;
+      const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+
+      btn.disabled = true;
+      btn.textContent = 'Creating account...';
+
+      try {
+        const res = await fetch('/api/auth/sign-up/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password }),
+        });
+
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          // Response was not JSON
+        }
+
+        if (!res.ok) {
+          throw new Error(extractError(data));
+        }
+
+        if (data?.error || data?.code) {
+          throw new Error(extractError(data));
+        }
+
+        // No session yet (email verification pending) — send the email so the
+        // event can be joined to the user row later.
+        track('signup_completed', { method: 'email', email });
+        contentDiv.style.display = 'none';
+        successDiv.style.display = 'block';
+      } catch (err: any) {
+        track('signup_failed', { method: 'email', message: String(err?.message ?? 'unknown').slice(0, 200) });
+        errorDiv.textContent = err.message || 'Something went wrong. Please try again.';
+        errorDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+      }
+    });
+
+    const googleBtn = document.getElementById('google-btn') as HTMLButtonElement;
+    googleBtn.addEventListener('click', async () => {
+      track('signup_google_clicked');
+      googleBtn.disabled = true;
+      googleBtn.style.opacity = '0.7';
+      errorDiv.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/auth/sign-in/social', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: 'google', callbackURL: '/overview' }),
+        });
+
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          // Response was not JSON
+        }
+
+        if (!res.ok) {
+          throw new Error(extractError(data) || 'Failed to start Google sign up.');
+        }
+
+        if (data?.url) {
+          window.location.href = data.url;
+        } else {
+          throw new Error('Failed to start Google sign up. Please try again.');
+        }
+      } catch (err: any) {
+        errorDiv.textContent = err.message || 'Failed to start Google sign up. Please try again.';
+        errorDiv.style.display = 'block';
+        googleBtn.disabled = false;
+        googleBtn.style.opacity = '1';
+      }
+    });
+  </script>
+</AuthLayout>

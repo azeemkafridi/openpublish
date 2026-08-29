@@ -1,0 +1,210 @@
+---
+import AuthLayout from '../layouts/AuthLayout.astro';
+---
+
+<AuthLayout title="Sign In">
+  <div id="invite-banner" style="display: none; padding: 10px 14px; border-radius: var(--radius-md); background: var(--accent-50); color: var(--accent-600); font-size: var(--text-sm); font-weight: var(--weight-medium); margin-bottom: 16px;"></div>
+  <form id="login-form" style="display: flex; flex-direction: column; gap: 16px;">
+    <div>
+      <label class="label" for="email">Email</label>
+      <input
+        class="input"
+        type="email"
+        id="email"
+        name="email"
+        placeholder="you@example.com"
+        required
+        autocomplete="email"
+      />
+    </div>
+    <div>
+      <label class="label" for="password">Password</label>
+      <input
+        class="input"
+        type="password"
+        id="password"
+        name="password"
+        placeholder="Enter your password"
+        required
+        autocomplete="current-password"
+      />
+    </div>
+    <div id="error-message" class="auth-error-box" style="display: none;"></div>
+    <button type="submit" class="btn btn-accent btn-lg" style="width: 100%; margin-top: 8px;">
+      Sign In
+    </button>
+  </form>
+
+  <div class="auth-divider">
+    <span>or continue with</span>
+  </div>
+
+  <button id="google-btn" type="button" class="btn btn-secondary btn-lg" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;">
+    <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
+      <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
+      <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/>
+      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 2.58 9 3.58Z" fill="#EA4335"/>
+    </svg>
+    Sign in with Google
+  </button>
+
+  <div style="display: flex; justify-content: space-between; margin-top: 20px; font-size: var(--text-sm);">
+    <a href="/register" id="create-account-link" class="auth-state-link">Create account</a>
+    <a href="/forgot-password" style="color: var(--stone-500); text-decoration: underline; font-size: var(--text-sm);">Forgot password?</a>
+  </div>
+
+  <script>
+    import { track } from '../lib/track';
+
+    const ERROR_MESSAGES: Record<string, string> = {
+      EMAIL_NOT_VERIFIED: 'Please verify your email before signing in. Check your inbox for the verification link.',
+      INVALID_EMAIL_OR_PASSWORD: 'Invalid email or password.',
+      INVALID_PASSWORD: 'Invalid email or password.',
+      INVALID_EMAIL: 'No account found with that email address.',
+      USER_NOT_FOUND: 'No account found with that email address.',
+      FAILED_TO_CREATE_SESSION: 'Sign-in failed. Please try again.',
+      TOO_MANY_REQUESTS: 'Too many login attempts. Please wait a moment and try again.',
+      ACCOUNT_LOCKED: 'Your account has been locked. Please contact support.',
+      no_organization: 'There was a problem loading your workspace. Please try signing in again or contact support.',
+      account_disabled: 'Your account has been disabled. Please contact support.',
+    };
+
+    function extractErrorMessage(data: any): string {
+      // Better Auth can return errors in multiple formats
+      const message = data?.message || data?.error?.message;
+      const code = data?.code || data?.error?.code;
+
+      // Map known codes to user-friendly messages
+      if (code && ERROR_MESSAGES[code]) return ERROR_MESSAGES[code];
+      // Use message from response if present
+      if (message) return message;
+      return 'Invalid email or password.';
+    }
+
+    // Redirect to overview if already logged in (client-side to avoid cookie cache issues).
+    // Skip when the middleware sent us here with an error (e.g. account_disabled) —
+    // a banned user may still hold a session, and redirecting would loop forever.
+    if (!new URLSearchParams(window.location.search).get('error')) {
+      fetch('/api/auth/get-session', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data?.session) window.location.href = '/overview'; })
+        .catch(() => {});
+    }
+
+    const form = document.getElementById('login-form') as HTMLFormElement;
+    const errorDiv = document.getElementById('error-message') as HTMLDivElement;
+
+    // Show error from URL params (e.g. redirect from middleware)
+    const urlError = new URLSearchParams(window.location.search).get('error');
+    if (urlError && ERROR_MESSAGES[urlError]) {
+      errorDiv.textContent = ERROR_MESSAGES[urlError];
+      errorDiv.style.display = 'block';
+      // Clean up URL
+      window.history.replaceState({}, '', '/login');
+    }
+
+    // Team-invite context: prefill the invited email + nudge to use it.
+    const loginParams = new URLSearchParams(window.location.search);
+    const prefillEmail = loginParams.get('email');
+    if (prefillEmail) {
+      (form.querySelector('#email') as HTMLInputElement).value = prefillEmail;
+    }
+    if (loginParams.get('invite') === '1') {
+      const banner = document.getElementById('invite-banner');
+      if (banner) {
+        banner.textContent = 'Sign in to accept your team invitation. Use the email address it was sent to.';
+        banner.style.display = 'block';
+      }
+      // Carry the invite context to the register page for new users.
+      const createLink = document.getElementById('create-account-link') as HTMLAnchorElement | null;
+      if (createLink) {
+        const q = new URLSearchParams({ invite: '1' });
+        if (prefillEmail) q.set('email', prefillEmail);
+        createLink.href = `/register?${q.toString()}`;
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorDiv.style.display = 'none';
+
+      const email = (form.querySelector('#email') as HTMLInputElement).value;
+      const password = (form.querySelector('#password') as HTMLInputElement).value;
+      const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+
+      btn.disabled = true;
+      btn.textContent = 'Signing in...';
+
+      try {
+        const res = await fetch('/api/auth/sign-in/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          // Response was not JSON
+        }
+
+        if (!res.ok) {
+          throw new Error(extractErrorMessage(data));
+        }
+
+        // Check for error in body even with 200 status (some auth libs do this)
+        if (data?.error || data?.code) {
+          throw new Error(extractErrorMessage(data));
+        }
+
+        track('login_succeeded', { method: 'email' });
+        window.location.href = '/overview';
+      } catch (err: any) {
+        track('login_failed', { method: 'email', message: String(err?.message ?? 'unknown').slice(0, 200) });
+        errorDiv.textContent = err.message || 'Something went wrong. Please try again.';
+        errorDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+      }
+    });
+
+    const googleBtn = document.getElementById('google-btn') as HTMLButtonElement;
+    googleBtn.addEventListener('click', async () => {
+      googleBtn.disabled = true;
+      googleBtn.style.opacity = '0.7';
+      errorDiv.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/auth/sign-in/social', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: 'google', callbackURL: '/overview' }),
+        });
+
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          // Response was not JSON
+        }
+
+        if (!res.ok) {
+          throw new Error(extractErrorMessage(data) || 'Failed to start Google sign in.');
+        }
+
+        if (data?.url) {
+          window.location.href = data.url;
+        } else {
+          throw new Error('Failed to start Google sign in. Please try again.');
+        }
+      } catch (err: any) {
+        errorDiv.textContent = err.message || 'Failed to start Google sign in. Please try again.';
+        errorDiv.style.display = 'block';
+        googleBtn.disabled = false;
+        googleBtn.style.opacity = '1';
+      }
+    });
+  </script>
+</AuthLayout>

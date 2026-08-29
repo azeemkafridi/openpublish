@@ -1,0 +1,35 @@
+import { registerPlatform } from './registry';
+import { FacebookHandler } from './facebook';
+import { InstagramHandler } from './instagram';
+import { XHandler } from './x';
+import { TikTokHandler } from './tiktok';
+import { YouTubeHandler } from './youtube';
+import { ThreadsHandler } from './threads';
+import { BlueskyHandler } from './bluesky';
+import { PinterestHandler } from './pinterest';
+import { GmbHandler } from './gmb';
+import { LinkedInHandler } from './linkedin';
+import { MastodonHandler } from './mastodon';
+import { RedditHandler } from './reddit';
+import { DiscordHandler } from './discord';
+import { TelegramHandler } from './telegram';
+import { TumblrHandler } from './tumblr';
+import { SnapchatHandler } from './snapchat';
+
+// Register all platform handlers
+registerPlatform(new FacebookHandler());
+registerPlatform(new InstagramHandler());
+registerPlatform(new XHandler());
+registerPlatform(new TikTokHandler());
+registerPlatform(new YouTubeHandler());
+registerPlatform(new ThreadsHandler());
+registerPlatform(new BlueskyHandler());
+registerPlatform(new PinterestHandler());
+registerPlatform(new GmbHandler());
+registerPlatform(new LinkedInHandler());
+registerPlatform(new MastodonHandler());
+registerPlatform(new RedditHandler());
+registerPlatform(new DiscordHandler());
+registerPlatform(new TelegramHandler());
+registerPlatform(new TumblrHandler());
+registerPlatform(new SnapchatHandler());

@@ -1,0 +1,83 @@
+---
+import AuthLayout from '../layouts/AuthLayout.astro';
+---
+
+<AuthLayout title="Verify Email" subtitle="Confirming your email address.">
+  <div id="status" class="auth-state">
+    <div class="auth-state-icon info">
+      <svg class="auth-spinner" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+    </div>
+    <p class="auth-state-title">Verifying your email...</p>
+    <p class="auth-state-desc">Please wait a moment.</p>
+  </div>
+
+  <script>
+    const statusDiv = document.getElementById('status') as HTMLDivElement;
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+
+    async function verify() {
+      if (!token) {
+        statusDiv.innerHTML = `
+          <div class="auth-state-icon error">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          </div>
+          <p class="auth-state-title">No verification token</p>
+          <p class="auth-state-desc">This link appears to be invalid.</p>
+          <a href="/login" class="auth-state-link">Go to sign in</a>
+        `;
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/auth/verify-email?token=' + encodeURIComponent(token));
+
+        if (!res.ok) {
+          let data: any = null;
+          try { data = await res.json(); } catch {}
+          const code = data?.code || data?.error?.code;
+          if (code === 'TOKEN_EXPIRED' || code === 'INVALID_TOKEN') {
+            throw new Error('expired');
+          }
+          if (code === 'EMAIL_ALREADY_VERIFIED') {
+            throw new Error('already_verified');
+          }
+          throw new Error(data?.message || data?.error?.message || 'failed');
+        }
+
+        statusDiv.innerHTML = `
+          <div class="auth-state-icon success">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <p class="auth-state-title">Email verified!</p>
+          <p class="auth-state-desc">Your email has been confirmed. You can now sign in.</p>
+          <a href="/login" class="btn btn-accent btn-lg" style="text-decoration: none;">Sign In</a>
+        `;
+      } catch (err: any) {
+        const isExpired = err.message === 'expired';
+        const isAlreadyVerified = err.message === 'already_verified';
+        if (isAlreadyVerified) {
+          statusDiv.innerHTML = `
+            <div class="auth-state-icon success">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <p class="auth-state-title">Already verified</p>
+            <p class="auth-state-desc">Your email has already been verified. You can sign in.</p>
+            <a href="/login" class="btn btn-accent btn-lg" style="text-decoration: none;">Sign In</a>
+          `;
+          return;
+        }
+        statusDiv.innerHTML = `
+          <div class="auth-state-icon error">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          </div>
+          <p class="auth-state-title">${isExpired ? 'Link expired' : 'Verification failed'}</p>
+          <p class="auth-state-desc">${isExpired ? 'This verification link has expired.' : 'Invalid or expired verification link.'} Try signing in to request a new one.</p>
+          <a href="/login" class="auth-state-link">Go to sign in</a>
+        `;
+      }
+    }
+
+    verify();
+  </script>
+</AuthLayout>

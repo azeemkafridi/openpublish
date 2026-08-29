@@ -1,0 +1,15 @@
+---
+import AppLayout from '@layouts/AppLayout.astro';
+import BulkComposer from '@components/compose/BulkComposer';
+---
+
+<AppLayout
+  title="Bulk Compose"
+  description="Create or import multiple posts at once, then pick channels and schedule them together."
+  hideRightPanel
+>
+  <!-- client:only — BulkComposer hydrates its entire state from a localStorage draft,
+       which the server can't know, so SSR + hydrate always text-mismatches (React #418).
+       It's an auth-gated, noindex tool with no useful SSR output, so render client-side only. -->
+  <BulkComposer client:only="react" />
+</AppLayout>

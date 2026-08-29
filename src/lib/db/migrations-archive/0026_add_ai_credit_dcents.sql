@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "ai_credit_dcents" integer DEFAULT 0 NOT NULL;

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.astro/
+uploads/
+*.log
+.DS_Store
+
+# env — only the example is committed
+.env
+.env.*
+!.env.example
