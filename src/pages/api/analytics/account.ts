@@ -77,11 +77,11 @@ export const GET: APIRoute = async ({ locals, url }) => {
       // per-post engagementRate from /api/analytics/engagement instead.
       // Cast is required: a bare NULL has Postgres type `unknown`, which some
       // clients and any wrapping CTE reject. No bound parameters here, so the
-      // fragment is safe to reuse (see .claude/rules/raw-sql.md).
+      // fragment is safe to reuse across SELECT/GROUP BY/ORDER BY.
       // The .as() is load-bearing: without it drizzle emits a bare
       // `NULL::integer` with no alias, Postgres names the column `?column?`,
       // and the field decodes to undefined rather than null — silently, with
-      // no error. See .claude/rules/raw-sql.md.
+      // no error.
       engagementRate: sql<number | null>`NULL::integer`.as('engagement_rate'),
       // Per-platform extras (e.g. TikTok total likes + video count) — surfaced as
       // their own cards in the UI so platform-specific metrics aren't lost.

@@ -2,7 +2,7 @@
  * Shared base email layout for all openPublish transactional emails.
  * All styles are inline for maximum email client compatibility.
  *
- * Design reference: Paper "Email Claude" template — 480px white card, a
+ * Design: 480px white card, a
  * compact two-column body (100x100 hero illustration on the left, heading /
  * body / CTA on the right), full-width fine print below, and a cream footer.
  *

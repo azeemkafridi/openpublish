@@ -6,9 +6,9 @@
  *
  *   on          — fully available (the default when the var is unset)
  *   connect_off — existing channels keep working, NEW connections are blocked.
- *                 This is the "pending application" state: we haven't been
- *                 approved yet (or approval lapsed for new installs), but the
- *                 users already connected must not be disrupted.
+ *                 This is the "pending application" state: the platform app
+ *                 isn't approved yet (or approval lapsed), but the users
+ *                 already connected must not be disrupted.
  *   off         — full kill switch. The platform disappears from the connect
  *                 UI, existing channels go read-only, and scheduled posts are
  *                 HELD (not failed) so they publish once we flip it back on.
@@ -19,13 +19,13 @@
  *                 aware surfaces resolve it via resolveAvailabilityForRole().
  *
  * Defaulting to `on` is deliberate: a deploy that hasn't had the new vars added
- * to Dokploy yet must not silently black out 14 working platforms. You turn a
+ * to the environment yet must not silently black out 14 working platforms. You turn a
  * platform OFF explicitly; you never turn one ON by accident.
  *
- * Independently, a few platforms need app-level OAuth credentials before they
- * can be connected at all (Reddit/Discord). Missing credentials resolve to
- * `connect_off` — there is nothing to grandfather, and it keeps a half-configured
- * deploy from showing a Connect button that can only fail.
+ * Independently, every OAuth-app platform needs app-level credentials before it
+ * can be connected at all. Missing credentials resolve to `connect_off` — there
+ * is nothing to grandfather, and it keeps a half-configured deploy from showing
+ * a Connect button that can only fail.
  *
  * Some platforms are really two integrations wearing one name, approved (or not)
  * separately by the vendor. Those get a **variant** flag scoped to a channel's
@@ -37,10 +37,7 @@
  *
  * Platforms NOT listed in PLATFORM_REQUIRED_ENV need no app-level credentials
  * and are always credential-satisfied: Telegram (per-user @BotFather bot token),
- * Bluesky (app password), and Mastodon (per-instance). The long-standing
- * platforms (Facebook, X, etc.) are intentionally not credential-gated — they're
- * already configured in prod and we don't want to hide a working platform on an
- * env-detection miss. They remain fully controllable via `PLATFORM_<NAME>`.
+ * Bluesky (app password), and Mastodon (per-instance app registration).
  */
 
 import type { PlatformName } from './types';
@@ -140,7 +137,7 @@ export function platformFlagEnvVar(platform: string): string {
 /**
  * Parse a flag value into a state. Unset/blank/unrecognised → `on` (see the
  * default-on rationale above). Generous with aliases so a `false` or `0` in
- * Dokploy does what the person typing it obviously meant.
+ * the environment does what the person typing it obviously meant.
  */
 function parseFlag(raw: string | undefined): PlatformState {
   const value = (raw ?? '').trim().toLowerCase();

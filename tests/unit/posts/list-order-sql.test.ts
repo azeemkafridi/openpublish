@@ -3,7 +3,7 @@
  * asserts the ordering is valid Postgres that carries no bound parameters.
  *
  * Why this exists: every other test mocks `@lib/db`, so they validate our JS
- * and nothing about the SQL (see .claude/rules/raw-sql.md). This query orders
+ * and nothing about the SQL. This query orders
  * by a `sql` fragment; if that fragment ever interpolated a VALUE rather than
  * column references, drizzle would emit a fresh placeholder per use and the
  * numbering would shift under the WHERE clause's parameters.

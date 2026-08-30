@@ -13,7 +13,7 @@
  * class of failure as the GROUP BY placeholder bug in summary-sql.test.ts.
  *
  * No database needed — `.toSQL()` renders offline. The statement has also been
- * executed against real Postgres via PREPARE/EXECUTE per .claude/rules/raw-sql.md.
+ * executed against real Postgres via PREPARE/EXECUTE before shipping.
  */
 import { describe, it, expect } from 'vitest';
 import { drizzle } from 'drizzle-orm/node-postgres';

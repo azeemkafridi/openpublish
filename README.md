@@ -52,7 +52,8 @@
 No seat pricing, no per-post limits, no analytics vendor in the middle. Your access tokens are encrypted in your own Postgres, your media sits on your own disk, and the whole thing runs from one `docker compose up`.
 
 ```bash
-git clone <this-repo> openpublish && cd openpublish
+git clone https://github.com/azeemkafridi/openpublish.git
+cd openpublish
 cp .env.example .env          # set BETTER_AUTH_SECRET + ENCRYPTION_KEY
 docker compose up -d          # http://localhost:4321
 ```
@@ -111,7 +112,8 @@ Most social media scheduling tools are SaaS: you pay per user per month, your co
 ### Docker (recommended)
 
 ```bash
-git clone <this-repo> openpublish && cd openpublish
+git clone https://github.com/azeemkafridi/openpublish.git
+cd openpublish
 cp .env.example .env
 ```
 

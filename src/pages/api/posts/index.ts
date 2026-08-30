@@ -51,7 +51,7 @@ const STATUS_FILTER_ALIASES: Record<string, string[]> = {
  * it was missing everything that came from a schedule.
  *
  * Interpolates only column references, so it carries no bound parameters and
- * renders identically wherever it is reused (see .claude/rules/raw-sql.md).
+ * renders identically wherever it is reused.
  */
 const POST_TIMELINE_ORDER = sql`COALESCE(${posts.publishedAt}, ${posts.scheduledAt}, ${posts.createdAt}) DESC`;
 import type { PlatformName } from '@lib/platforms/types';

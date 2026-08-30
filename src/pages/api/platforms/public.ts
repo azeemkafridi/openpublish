@@ -20,7 +20,7 @@ import { PLATFORM_DISPLAY } from '@/lib/platforms/registry';
  * nothing about our ops surface or what we're waiting on approval for.
  *
  * Cached for 5 minutes at the edge. Flipping a `PLATFORM_<NAME>` flag in
- * Dokploy is reflected here within that window, but reaching the marketing
+ * the environment is reflected here within that window, but reaching a static
  * *site* additionally requires a marketing rebuild — the site is static HTML
  * and reads this endpoint at build time. See marketing/src/lib/platforms.ts.
  */

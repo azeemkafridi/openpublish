@@ -22,7 +22,7 @@ import { PLATFORM_DISPLAY } from '@/lib/platforms/registry';
  * apart from "never existed".
  *
  * `envVar` is included only for org owners/admins: it tells the person who can
- * actually fix it which Dokploy variable to flip, without exposing our ops
+ * actually fix it which environment variable to flip, without exposing ops
  * surface to every member.
  */
 export const GET: APIRoute = async ({ locals }) => {
