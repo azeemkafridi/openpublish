@@ -95,7 +95,7 @@ Most social media scheduling tools are SaaS: you pay per user per month, your co
 
 ## Features
 
-| | |
+| Feature | What it does |
 |---|---|
 | **Multi-platform composer** | One editor, 16 networks. Per-platform content overrides, live preview per network, per-platform character counters and validation. |
 | **Post types** | Standard posts, videos, reels and shorts, stories, carousels, and threads — with the media rules each platform enforces. |
