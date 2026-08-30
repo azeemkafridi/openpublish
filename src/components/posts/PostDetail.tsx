@@ -73,7 +73,7 @@ export function PostDetail({ postId }: PostDetailProps) {
 
       if (action === 'delete') {
         // Navigate back after deletion
-        window.location.href = '/schedule';
+        window.location.href = '/calendar';
         return;
       }
 

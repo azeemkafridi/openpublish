@@ -12,7 +12,12 @@ import { createLogger } from '../logger';
 
 const logger = createLogger('media-upload');
 
-const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
+// Scratch space for sharp/ffmpeg. This MUST live outside the local-storage
+// root (MEDIA_DIR, default ./uploads): storage keys are `original/…`,
+// `thumbnails/…` and `converted/…`, so a scratch dir inside that root resolves
+// to the very path the object is stored at — and the temp cleanup below then
+// deletes the object it just stored. Override with MEDIA_TMP_DIR.
+const UPLOAD_DIR = path.resolve(process.env.MEDIA_TMP_DIR || path.join(os.tmpdir(), 'openpublish'));
 const ORIGINAL_DIR = path.join(UPLOAD_DIR, 'original');
 const THUMBNAIL_DIR = path.join(UPLOAD_DIR, 'thumbnails');
 const CONVERTED_DIR = path.join(UPLOAD_DIR, 'converted');

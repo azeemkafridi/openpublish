@@ -1,12 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import sharp from 'sharp';
 import { createLogger } from '../logger';
 import { extractVideoFrame, probeVideo } from './ffmpeg';
 
 const logger = createLogger('thumbnail');
 
-const THUMBNAIL_DIR = path.resolve(process.cwd(), 'uploads', 'thumbnails');
+// Scratch space only — see the note in upload.ts: this must NOT sit inside the
+// local-storage root, or storing a derivative under the `thumbnails/` key would
+// land on this same path and the temp cleanup would delete it.
+const THUMBNAIL_DIR = path.join(
+  path.resolve(process.env.MEDIA_TMP_DIR || path.join(os.tmpdir(), 'openpublish')),
+  'thumbnails',
+);
 
 // Owned here rather than relying on upload.ts having been imported first —
 // sharp's .toFile() throws ENOENT if the directory is missing.
