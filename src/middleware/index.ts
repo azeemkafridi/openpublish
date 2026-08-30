@@ -98,6 +98,9 @@ const PUBLIC_PATHS = [
   // the session check here and attributes the event itself when a session
   // cookie is present. Rate-limited per IP and strictly validated in-route.
   '/api/events',
+  // API reference — public like the spec it renders (/openapi.json is a
+  // static file and bypasses the middleware anyway).
+  '/docs',
   // Local-storage media (STORAGE=local). Platforms fetch post media from these
   // URLs at publish time, so they must be reachable without a session — keys
   // are unguessable server-generated names, mirroring a public bucket URL.

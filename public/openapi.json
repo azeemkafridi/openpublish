@@ -1,0 +1,5328 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "openPublish API",
+    "version": "1.0.0",
+    "description": "The REST API of this openPublish instance. Publish to 16 social media platforms, schedule posts, manage media and read analytics from scripts and agents.\n\nAuthenticate with an API key from the [API page](/developer): `Authorization: Bearer bp_...`."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "This instance"
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "API key from Settings > API Keys. Pass as `Bearer bp_your_key_here`"
+      },
+      "oauth2": {
+        "type": "oauth2",
+        "description": "**Beta.** For products that embed openPublish and do not want their users pasting an API key. The user approves your app on openPublish and you receive a scoped token bound to the workspace they chose. PKCE (S256) is required for every client, `scope` is required (there is no implicit default), authorization codes are single-use, and refresh tokens rotate. Pass the token as `Bearer bpat_...`.\n\nOAuth tokens reach posts, schedules, labels, media, analytics, quota usage and read-only channel data \u2014 and nothing else. Account administration (team, organizations, billing and credit purchases, API keys, OAuth app management) returns 403 for **any** OAuth token, including `full`, because those actions would outlive the user disconnecting the app. Use an API key (`Bearer bp_...`) for those; keys are unaffected by this and remain the default for server-to-server use.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "//oauth/authorize",
+            "tokenUrl": "//api/oauth/token",
+            "refreshUrl": "//api/oauth/token",
+            "scopes": {
+              "posts:read": "View posts and their status",
+              "posts:write": "Create, update, schedule and publish posts",
+              "media:read": "View uploaded media",
+              "media:write": "Upload and delete media",
+              "analytics:read": "View analytics and post metrics",
+              "channels:read": "See which social accounts are connected",
+              "full": "Everything an app may do: read and write posts, schedules, labels and media, and read analytics and channels"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Post": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "content": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "scheduled",
+              "publishing",
+              "published",
+              "processing",
+              "failed",
+              "partial"
+            ]
+          },
+          "scheduledAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "postFormat": {
+            "type": "string",
+            "enum": [
+              "post",
+              "video",
+              "reel",
+              "story",
+              "carousel",
+              "thread"
+            ]
+          },
+          "postTypeOverrides": {
+            "type": "object",
+            "description": "Per-platform post type override. E.g. { \"instagram\": \"reel\", \"facebook\": \"story\" }. A type the platform does not offer is rejected with 400 VALIDATION_ERROR (previously it silently fell back to the platform default). Instagram: feed_photo, feed_video, reel, story, carousel. Facebook: post, reel, story. TikTok: video, photo_slideshow. YouTube: video, short. LinkedIn: post, multi_image. Pinterest: pin, video_pin, carousel. GMB: standard, event, offer. Snapchat: story, saved_story, spotlight."
+          },
+          "platformSpecific": {
+            "type": "object",
+            "description": "Per-platform options. Keys are platform names. Facebook: { shareToStory }. Instagram: { collaborators, shareToStory, trialReel, graduationStrategy ('manual'|'auto' \u2014 any other value is rejected with 400 VALIDATION_ERROR), thumbnailTimestamp (seconds) }. TikTok: { privacyLevel ('PUBLIC_TO_EVERYONE'|'MUTUAL_FOLLOW_FRIENDS'|'FOLLOWER_OF_CREATOR'|'SELF_ONLY'|'SEND_TO_USER_INBOX' \u2014 any other value is rejected with 400 VALIDATION_ERROR), disableDuet, disableStitch, disableComment, isAigc, brandContentToggle, brandOrganicToggle, thumbnailTimestamp }. YouTube: { title, privacyStatus ('public'|'unlisted'|'private' \u2014 any other value is rejected with 400 VALIDATION_ERROR), categoryId, madeForKids, playlistId, thumbnailUrl }. Pinterest: { title, description, link, [channelId]: { boardId } }. GMB: { ctaType ('BOOK'|'ORDER'|'SHOP'|'LEARN_MORE'|'SIGN_UP'|'CALL' \u2014 any other value is rejected with 400 VALIDATION_ERROR), ctaUrl, eventTitle, startDate, startTime, endDate, endTime, couponCode, redeemOnlineUrl, termsConditions }. X: { replySettings ('everyone'|'following'|'verified'|'subscribers'|'mentionedUsers' \u2014 any other value is rejected with 400 VALIDATION_ERROR) }. Threads: { quotePostId }. Snapchat: { [channelId]: { title (Saved Story title, max 45 chars \u2014 defaults to the caption's first line), locale (Spotlight locale, default 'en_US'), saveToProfile (Spotlight only, default true) } }. Use _firstComment (string) for auto-posted reply after publish."
+          },
+          "platformContent": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Per-platform content overrides mapping platform name to a plain string, e.g. { \"x\": \"Short version\" }. Values must be strings \u2014 nested objects are rejected with 400 VALIDATION_ERROR."
+          },
+          "deleteMediaAfterPublish": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether uploaded media is deleted right after publishing. Defaults to false \u2014 media is kept and reclaimed by the 3-month retention sweep. Always false for recurring-schedule posts and bulk-created posts."
+          },
+          "autoPlugEnabled": {
+            "type": "boolean"
+          },
+          "autoPlugText": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "autoPlugThreshold": {
+            "type": "integer"
+          },
+          "autoPlugFired": {
+            "type": "boolean"
+          },
+          "autoRepostEnabled": {
+            "type": "boolean"
+          },
+          "autoRepostThreshold": {
+            "type": "integer"
+          },
+          "autoRepostFired": {
+            "type": "boolean"
+          },
+          "recurringScheduleId": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "recurringSchedule": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Full recurring schedule details when linked"
+          },
+          "mediaFiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaFile"
+            }
+          },
+          "postPlatforms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostPlatform"
+            }
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Label"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "approvalStatus": {
+            "type": "string",
+            "enum": [
+              "none",
+              "pending",
+              "approved",
+              "rejected"
+            ],
+            "default": "none",
+            "description": "Team approval state, orthogonal to status. 'pending' and 'rejected' posts are skipped by the scheduler even when scheduled and overdue; approving via POST /api/posts/{id}/approve releases them (an overdue post publishes immediately on approval). Members whose role lacks post:publish (contributors) always get 'pending' when scheduling; others can opt in with requestApproval."
+          },
+          "approvedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "User ID of the approver (set when approvalStatus is 'approved')."
+          },
+          "approvedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "rejectionReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Reviewer's reason when approvalStatus is 'rejected'."
+          }
+        }
+      },
+      "PostPlatform": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "channelId": {
+            "type": "integer"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "publishing",
+              "published",
+              "failed",
+              "processing",
+              "unconfirmed"
+            ],
+            "description": "Per-platform publish state. 'unconfirmed' is terminal: the publish request may have reached the platform but its response was lost \u2014 check the account, then retry with republish: true if the post is not live."
+          },
+          "platformPostId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platformUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "errorMessage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "retryCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "Channel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "facebook",
+              "instagram",
+              "x",
+              "tiktok",
+              "youtube",
+              "threads",
+              "bluesky",
+              "pinterest",
+              "gmb",
+              "linkedin",
+              "mastodon",
+              "reddit",
+              "discord",
+              "telegram",
+              "tumblr",
+              "snapchat"
+            ]
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "accountType": {
+            "type": "string"
+          },
+          "profileImage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "tokenStatus": {
+            "type": "string",
+            "enum": [
+              "valid",
+              "expiring_soon",
+              "expired"
+            ]
+          },
+          "tokenExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "platformAvailable": {
+            "type": "boolean",
+            "description": "Whether this channel can publish right now. `false` means it is switched off server-side \u2014 the channel itself is healthy, but its scheduled posts are being held.\n\nResolved for THIS channel: the `PLATFORM_<NAME>` flag narrowed by any variant flag matching its `accountType`. LinkedIn company pages (`accountType: \"organization\"`) are gated separately from personal profiles, so two LinkedIn channels in the same response can differ here."
+          },
+          "platformState": {
+            "type": "string",
+            "enum": [
+              "on",
+              "connect_off",
+              "off"
+            ],
+            "description": "Current availability of the platform, controlled by the `PLATFORM_<NAME>` environment flag on the server.\n\n- `on` \u2014 fully available.\n- `connect_off` \u2014 new channels cannot be connected, but channels already connected keep publishing normally (used while a platform app review is pending).\n- `off` \u2014 kill switch: the platform is unavailable, and posts targeting it are **held**, not failed. They publish automatically once the platform is switched back on.\n\nResolved for THIS channel: the `PLATFORM_<NAME>` flag narrowed by any variant flag matching its `accountType`. LinkedIn company pages (`accountType: \"organization\"`) are gated separately from personal profiles, so two LinkedIn channels in the same response can differ here."
+          },
+          "platformMessage": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "User-facing explanation when the platform is not fully available; `null` otherwise. When a variant rather than the whole platform is what is switched off, this names the variant (e.g. \"LinkedIn Company Pages\")."
+          }
+        }
+      },
+      "MediaFile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "duration": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "originalUrl": {
+            "type": "string"
+          },
+          "thumbnailUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "160x160 square crop (webp). For videos this is generated from an extracted poster frame; null until the derivative job has run."
+          },
+          "previewUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "400px-wide derivative (webp) for grids. For videos, generated from the poster frame."
+          },
+          "largeUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "1200px-wide derivative (webp) for lightboxes and large preview panes. For videos, generated from the poster frame. Null on media uploaded before this derivative existed until the backfill runs."
+          }
+        }
+      },
+      "Label": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "post",
+              "media"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Schedule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "frequency": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "weekly",
+              "biweekly",
+              "monthly"
+            ]
+          },
+          "dayOfWeek": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "dayOfMonth": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "timeOfDay": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "channelIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "contentTemplate": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "nextRunAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "requireApproval": {
+            "type": "boolean",
+            "default": false,
+            "description": "Optional. Hold every occurrence this schedule generates for team approval \u2014 each generated post lands with approvalStatus 'pending' and the scheduler skips it until an approver releases it via POST /api/posts/{id}/approve. Default false."
+          }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "isRead": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "PlatformSpecific": {
+        "type": "object",
+        "description": "Per-platform options. Keys are platform names. Facebook: { shareToStory }. Instagram: { collaborators, shareToStory, trialReel, graduationStrategy ('manual'|'auto' \u2014 any other value is rejected with 400 VALIDATION_ERROR), thumbnailTimestamp (seconds) }. TikTok: { privacyLevel ('PUBLIC_TO_EVERYONE'|'MUTUAL_FOLLOW_FRIENDS'|'FOLLOWER_OF_CREATOR'|'SELF_ONLY'|'SEND_TO_USER_INBOX' \u2014 any other value is rejected with 400 VALIDATION_ERROR), disableDuet, disableStitch, disableComment, isAigc, brandContentToggle, brandOrganicToggle, thumbnailTimestamp }. YouTube: { title, privacyStatus ('public'|'unlisted'|'private' \u2014 any other value is rejected with 400 VALIDATION_ERROR), categoryId, madeForKids, playlistId, thumbnailUrl }. Pinterest: { title, description, link, [channelId]: { boardId } }. GMB: { ctaType ('BOOK'|'ORDER'|'SHOP'|'LEARN_MORE'|'SIGN_UP'|'CALL' \u2014 any other value is rejected with 400 VALIDATION_ERROR), ctaUrl, eventTitle, startDate, startTime, endDate, endTime, couponCode, redeemOnlineUrl, termsConditions }. X: { replySettings ('everyone'|'following'|'verified'|'subscribers'|'mentionedUsers' \u2014 any other value is rejected with 400 VALIDATION_ERROR) }. Threads: { quotePostId }. Reddit: { [channelId]: { subreddit (required), title, type, url, flairId, thumbnailUrl } }; subreddit falls back to the one stored on the channel, and title falls back to the first line of content truncated to 300 chars. thumbnailUrl is optional on video posts \u2014 when omitted the server falls back to the video's auto-extracted poster frame, and the publish fails only if neither exists. Unlike Pinterest's coverImageUrl there is no attached-image fallback, because a Reddit media post accepts exactly one file. Discord: { [channelId]: { channelId } } \u2014 the outer key is the openPublish channel id, the inner channelId is the target Discord text channel. Telegram: no options \u2014 the destination chat is fixed when the channel is connected. Tumblr: { [channelId]: { blogName, title, tags (array of strings, no leading '#'), link, sourceUrl } }; blogName defaults to the blog the channel was connected as. Snapchat: { [channelId]: { title (Saved Story title, max 45 chars \u2014 defaults to the caption's first line), locale (Spotlight locale, default 'en_US'), saveToProfile (Spotlight only \u2014 false sends skip_save_to_profile) } }; post types are story (default; caption not sent to Snapchat), saved_story and spotlight (video only, caption becomes the 160-char description); every Snapchat post requires exactly one image or video. Reddit, Discord, Tumblr and Snapchat also accept a flat (non channel-id-keyed) object that applies to every channel of that platform on the post. Use _firstComment (string), at the TOP level of platformSpecific rather than inside a platform key, for an auto-posted reply after publish. Supported on x, instagram, facebook, linkedin, youtube, threads, bluesky, mastodon, reddit and telegram; NOT supported on discord, pinterest, tiktok, gmb or tumblr, where the main post still publishes and the comment is recorded as failed. Snapchat does not support first comments either.",
+        "properties": {
+          "facebook": {
+            "type": "object",
+            "properties": {
+              "shareToStory": {
+                "type": "boolean",
+                "description": "Also share to Facebook Story"
+              }
+            }
+          },
+          "x": {
+            "type": "object",
+            "properties": {
+              "replySettings": {
+                "type": "string",
+                "enum": [
+                  "everyone",
+                  "following",
+                  "verified",
+                  "subscribers",
+                  "mentionedUsers"
+                ],
+                "description": "Who can reply to this tweet"
+              }
+            }
+          },
+          "tiktok": {
+            "type": "object",
+            "properties": {
+              "privacyLevel": {
+                "type": "string",
+                "enum": [
+                  "PUBLIC_TO_EVERYONE",
+                  "MUTUAL_FOLLOW_FRIENDS",
+                  "FOLLOWER_OF_CREATOR",
+                  "SELF_ONLY",
+                  "SEND_TO_USER_INBOX"
+                ]
+              },
+              "disableDuet": {
+                "type": "boolean"
+              },
+              "disableStitch": {
+                "type": "boolean"
+              },
+              "disableComment": {
+                "type": "boolean"
+              },
+              "isAigc": {
+                "type": "boolean",
+                "description": "AI-generated content disclosure"
+              },
+              "brandContentToggle": {
+                "type": "boolean",
+                "description": "Paid partnership"
+              },
+              "brandOrganicToggle": {
+                "type": "boolean",
+                "description": "Brand promotional content"
+              },
+              "thumbnailTimestamp": {
+                "type": "number",
+                "description": "Thumbnail timestamp in seconds"
+              }
+            }
+          },
+          "youtube": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "privacyStatus": {
+                "type": "string",
+                "enum": [
+                  "public",
+                  "unlisted",
+                  "private"
+                ]
+              },
+              "categoryId": {
+                "type": "string"
+              },
+              "madeForKids": {
+                "type": "boolean"
+              },
+              "playlistId": {
+                "type": "string"
+              },
+              "thumbnailUrl": {
+                "type": "string",
+                "description": "URL of custom thumbnail image"
+              }
+            }
+          },
+          "pinterest": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "link": {
+                "type": "string",
+                "description": "Destination URL"
+              },
+              "dominantColor": {
+                "type": "string",
+                "description": "Hex color e.g. #FF5733"
+              },
+              "coverImageUrl": {
+                "type": "string",
+                "description": "Cover image URL for video pins. Optional \u2014 when omitted, an image attached alongside the video is used, otherwise the auto-extracted poster frame of the video. Publishing fails only if none of the three is available."
+              }
+            }
+          },
+          "gmb": {
+            "type": "object",
+            "properties": {
+              "ctaType": {
+                "type": "string",
+                "enum": [
+                  "LEARN_MORE",
+                  "BOOK",
+                  "ORDER",
+                  "SHOP",
+                  "SIGN_UP",
+                  "CALL"
+                ]
+              },
+              "ctaUrl": {
+                "type": "string"
+              },
+              "eventTitle": {
+                "type": "string"
+              },
+              "startDate": {
+                "type": "string",
+                "description": "YYYY-MM-DD"
+              },
+              "startTime": {
+                "type": "string",
+                "description": "HH:MM"
+              },
+              "endDate": {
+                "type": "string"
+              },
+              "endTime": {
+                "type": "string"
+              },
+              "couponCode": {
+                "type": "string"
+              },
+              "redeemOnlineUrl": {
+                "type": "string"
+              },
+              "termsConditions": {
+                "type": "string"
+              }
+            }
+          },
+          "instagram": {
+            "type": "object",
+            "properties": {
+              "collaborators": {
+                "type": "string",
+                "description": "Comma-separated usernames without @"
+              },
+              "shareToStory": {
+                "type": "boolean",
+                "description": "Also share to Instagram Story"
+              },
+              "trialReel": {
+                "type": "boolean",
+                "description": "Post as trial reel"
+              },
+              "graduationStrategy": {
+                "type": "string",
+                "enum": [
+                  "manual",
+                  "auto"
+                ],
+                "description": "Trial reel graduation strategy"
+              },
+              "thumbnailTimestamp": {
+                "type": "number",
+                "description": "Thumbnail timestamp in seconds"
+              }
+            }
+          },
+          "threads": {
+            "type": "object",
+            "properties": {
+              "quotePostId": {
+                "type": "string",
+                "description": "Threads post ID to quote"
+              }
+            }
+          },
+          "reddit": {
+            "type": "object",
+            "description": "Keyed by openPublish channel id (e.g. \"12\"), or flat to apply to every Reddit channel on the post. The fields below are those of the inner object.",
+            "properties": {
+              "subreddit": {
+                "type": "string",
+                "description": "Required. Target subreddit. Accepts 'webdev', 'r/webdev' or '/r/webdev' \u2014 normalized to a bare lowercase name. Falls back to the subreddit stored on the channel."
+              },
+              "title": {
+                "type": "string",
+                "description": "Post title. Defaults to the first line of content, truncated to 300 characters."
+              },
+              "type": {
+                "type": "string",
+                "description": "Set to 'link' to force a link submission. The submission kind is otherwise resolved from the attached media: image file -> image, video file -> video, url set -> link, else self."
+              },
+              "url": {
+                "type": "string",
+                "description": "Destination URL for a link post. Supplying it implies type 'link'."
+              },
+              "flairId": {
+                "type": "string",
+                "description": "Link-flair id. List a subreddit's flairs via GET /api/channels/{id}/options."
+              },
+              "thumbnailUrl": {
+                "type": "string",
+                "description": "Poster image URL for video posts. Optional \u2014 when omitted the server falls back to the video's auto-extracted poster frame, and publishing fails only when neither is available. Unlike Pinterest's coverImageUrl there is no attached-image fallback: a Reddit media post accepts exactly one file, so a video post cannot also carry a cover image."
+              }
+            }
+          },
+          "discord": {
+            "type": "object",
+            "description": "Keyed by openPublish channel id (e.g. \"12\"), or flat to apply to every Discord channel on the post. The fields below are those of the inner object.",
+            "properties": {
+              "channelId": {
+                "type": "string",
+                "description": "Required. The target Discord text channel id (a snowflake) within the connected server. Note this is a Discord channel id, not the openPublish channel id used as the outer key. List postable channels via GET /api/channels/{id}/options."
+              }
+            }
+          },
+          "telegram": {
+            "type": "object",
+            "description": "Telegram accepts no platform-specific options \u2014 the destination chat is fixed when the channel is connected. Content is sent as plain text (no parse mode). Text longer than the 1024-character caption limit is posted as a second message alongside captionless media.",
+            "properties": {}
+          },
+          "tumblr": {
+            "type": "object",
+            "description": "Keyed by openPublish channel id (e.g. \"12\"), or flat to apply to every Tumblr channel on the post. The fields below are those of the inner object.",
+            "properties": {
+              "blogName": {
+                "type": "string",
+                "description": "Which blog to publish to. Defaults to the blog the channel was connected as (the account's primary blog). List the account's blogs via GET /api/channels/{id}/options."
+              },
+              "title": {
+                "type": "string",
+                "description": "Rendered as a heading block above the post body."
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Tumblr tags, without the leading '#'."
+              },
+              "link": {
+                "type": "string",
+                "description": "Appended to the post as a link block."
+              },
+              "sourceUrl": {
+                "type": "string",
+                "description": "Attribution URL stored as the post's source."
+              }
+            }
+          },
+          "snapchat": {
+            "type": "object",
+            "description": "Keyed by openPublish channel id (e.g. \"12\"), or flat to apply to every Snapchat channel on the post. Post types: story (default), saved_story, spotlight. Every Snapchat post requires exactly one image or video; spotlight is video-only (6\u201360s). The caption is used only for Spotlight (160-char description) and as the Saved Story title fallback \u2014 plain stories carry no text.",
+            "properties": {
+              "title": {
+                "type": "string",
+                "maxLength": 45,
+                "description": "Saved Story title (max 45 chars). Defaults to the first line of the caption, truncated."
+              },
+              "locale": {
+                "type": "string",
+                "description": "Spotlight locale, e.g. 'en_US'. Defaults to 'en_US' when omitted."
+              },
+              "saveToProfile": {
+                "type": "boolean",
+                "description": "Spotlight only. Default true; false sends skip_save_to_profile to Snap."
+              }
+            }
+          }
+        }
+      },
+      "PlatformAvailability": {
+        "type": "object",
+        "description": "Availability of one social platform. Disabled platforms are always included in responses with `enabled: false` \u2014 never omitted \u2014 so clients can tell \"switched off right now\" apart from \"not supported\".",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "facebook",
+              "instagram",
+              "x",
+              "tiktok",
+              "youtube",
+              "threads",
+              "bluesky",
+              "pinterest",
+              "gmb",
+              "linkedin",
+              "mastodon",
+              "reddit",
+              "discord",
+              "telegram",
+              "tumblr",
+              "snapchat"
+            ]
+          },
+          "displayName": {
+            "type": "string",
+            "example": "LinkedIn"
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Brand colour hex, for UI rendering.",
+            "example": "#0A66C2"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Convenience flag; equivalent to `state == \"on\"`."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "on",
+              "connect_off",
+              "off"
+            ],
+            "description": "Current availability of the platform, controlled by the `PLATFORM_<NAME>` environment flag on the server.\n\n- `on` \u2014 fully available.\n- `connect_off` \u2014 new channels cannot be connected, but channels already connected keep publishing normally (used while a platform app review is pending).\n- `off` \u2014 kill switch: the platform is unavailable, and posts targeting it are **held**, not failed. They publish automatically once the platform is switched back on."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "enabled",
+              "flag_connect_off",
+              "flag_off",
+              "unconfigured"
+            ],
+            "description": "Why the platform is in this state. `unconfigured` means the server has no OAuth app credentials for it yet."
+          },
+          "canConnect": {
+            "type": "boolean",
+            "description": "Whether a NEW channel can be connected right now."
+          },
+          "canPublish": {
+            "type": "boolean",
+            "description": "Whether already-connected channels can publish right now."
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "User-facing explanation. `null` when the platform is fully enabled."
+          },
+          "envVar": {
+            "type": "string",
+            "description": "The server env var controlling this platform. Only returned to organization owners and admins.",
+            "example": "PLATFORM_LINKEDIN"
+          },
+          "variants": {
+            "type": "object",
+            "description": "Sub-platforms gated independently of their parent, keyed by the channel `accountType` they cover. Present only for platforms that have one. Today: `linkedin.organization` \u2014 LinkedIn company pages, which run on a separate LinkedIn app (Community Management API) reviewed separately from personal profiles, so pages can be paused while personal-profile posting stays fully live. A variant is never more permissive than its parent: `state: \"off\"` on the platform means every variant is off too.",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "example": "LinkedIn Company Pages"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Convenience flag; equivalent to `state == \"on\"`."
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "on",
+                    "connect_off",
+                    "off"
+                  ],
+                  "description": "Same semantics as the platform-level `state`, resolved for this variant."
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "enabled",
+                    "flag_connect_off",
+                    "flag_off",
+                    "unconfigured"
+                  ]
+                },
+                "canConnect": {
+                  "type": "boolean",
+                  "description": "Whether a NEW channel of this account type can be connected right now."
+                },
+                "canPublish": {
+                  "type": "boolean",
+                  "description": "Whether already-connected channels of this account type can publish right now."
+                },
+                "message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "User-facing explanation. `null` when the variant is fully enabled."
+                },
+                "envVar": {
+                  "type": "string",
+                  "description": "The server env var controlling this variant. Only returned to organization owners and admins.",
+                  "example": "PLATFORM_LINKEDIN_PAGES"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Posts",
+      "description": "Create, schedule, publish, and manage posts across platforms"
+    },
+    {
+      "name": "Channels",
+      "description": "Connect and manage social media accounts"
+    },
+    {
+      "name": "Channel Sets",
+      "description": "Saved channel groups for one-click targeting"
+    },
+    {
+      "name": "RSS Autopost",
+      "description": "Turn RSS/Atom feed items into posts automatically"
+    },
+    {
+      "name": "Media",
+      "description": "Upload and manage images and videos"
+    },
+    {
+      "name": "Analytics",
+      "description": "View engagement metrics and performance data"
+    },
+    {
+      "name": "Labels",
+      "description": "Organize posts and media with labels"
+    },
+    {
+      "name": "Schedules",
+      "description": "Set up recurring post schedules"
+    },
+    {
+      "name": "Organizations",
+      "description": "Manage workspaces and teams"
+    },
+    {
+      "name": "Notifications",
+      "description": "View and manage in-app notifications"
+    },
+    {
+      "name": "API Keys",
+      "description": "Manage API authentication keys. Available on all plans (Free: 1 key, Pro: 5, Business: 10)."
+    },
+    {
+      "name": "OAuth",
+      "description": "Beta: let your users connect their own openPublish account instead of pasting an API key. Register an app under Settings > API to get a client ID."
+    },
+    {
+      "name": "Utilities",
+      "description": "Link previews, quotas, activity log"
+    }
+  ],
+  "paths": {
+    "/api/posts": {
+      "get": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "List posts",
+        "description": "Retrieve posts with pagination, filtering, and search. Results are ordered newest-first by the timestamp that applies to each post \u2014 publishedAt if it is live, else scheduledAt if it is due, else createdAt \u2014 with id descending as a tiebreaker. A post written weeks before it publishes therefore sorts by when it went live, not when it was drafted.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Page number (default: 1)",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Items per page, max 500 (default: 20)",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 500
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Filter by post status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "scheduled",
+                "publishing",
+                "published",
+                "processing",
+                "failed",
+                "partial"
+              ]
+            }
+          },
+          {
+            "name": "channelId",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Filter by channel ID",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "labelIds",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Comma-separated label IDs to filter by",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "labelId",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Filter by single label ID (legacy, prefer labelIds)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "labelMode",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 How to combine label filters (default: or)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "or",
+                "and"
+              ],
+              "default": "or"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Search in post content",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Filter posts created on or after this date",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Filter posts created on or before this date",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "scheduledFrom",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Filter posts scheduled on or after this date",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "scheduledTo",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Filter posts scheduled on or before this date",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "recurring",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Set to \"true\" to filter recurring posts only",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "approvalStatus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "none",
+                "pending",
+                "approved",
+                "rejected"
+              ]
+            },
+            "description": "Filter by team approval state (e.g. 'pending' for the approval queue)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Posts list with pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "posts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Post"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "totalPages": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "listPosts",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:read"
+            ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Create post",
+        "description": "Create a new post as draft or scheduled. Validates character limits per platform, media ownership, channel ownership, and plan quotas.\n\n**Character limits:** X: 280, Bluesky: 300, Threads: 500, Mastodon: 500, Pinterest: 500, GMB: 1500, Instagram: 2200, TikTok: 2200, LinkedIn: 3000, YouTube: 5000, Facebook: 63206. On X and Mastodon every URL counts as a flat 23 characters (t.co wrapping / Mastodon link counting), regardless of its real length.\n\n**Link cards:** for a text-only post (no media) containing a URL, the first URL is unfurled at publish time. Facebook receives it as the `link` param, Bluesky as an external embed (with thumbnail), and LinkedIn as a `content.article` card (LinkedIn's API never scrapes URLs itself; if the page yields no title, the post publishes as plain text without a card). Other platforms unfurl the URL themselves or render it as plain text (links in Instagram/TikTok captions are not clickable).\n\nReturns **403** with `code: \"PLATFORM_DISABLED\"` when a target channel's platform has been switched off server-side (`PLATFORM_<NAME>=off`). This is distinct from `FEATURE_DISABLED`, which means the platform is not on the organization's plan. Check `GET /api/platforms` for current availability. A channel's *variant* can be off on its own \u2014 LinkedIn company pages are gated separately from personal profiles \u2014 in which case the error also carries `accountType` (e.g. `\"organization\"`) naming the variant that is unavailable.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "channels"
+                ],
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "description": "Post text content (optional if media attached)"
+                  },
+                  "channels": {
+                    "type": "array",
+                    "description": "Required. Target channels to publish to",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "channelId": {
+                          "type": "integer",
+                          "description": "Channel ID from GET /api/channels"
+                        },
+                        "platform": {
+                          "type": "string",
+                          "description": "Platform name. Optional \u2014 the server always resolves the platform from the channel record; a supplied value is ignored."
+                        }
+                      },
+                      "required": [
+                        "channelId"
+                      ]
+                    }
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "scheduled"
+                    ],
+                    "default": "draft",
+                    "description": "Optional. Default: draft"
+                  },
+                  "mediaFiles": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "Optional. Media file IDs from POST /api/media"
+                  },
+                  "scheduledAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Optional. Required when status is 'scheduled'"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "default": "UTC",
+                    "description": "Optional. IANA timezone (default: UTC)"
+                  },
+                  "labels": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "Optional. Label IDs to attach"
+                  },
+                  "postFormat": {
+                    "type": "string",
+                    "enum": [
+                      "post",
+                      "video",
+                      "reel",
+                      "story",
+                      "carousel",
+                      "thread"
+                    ],
+                    "default": "post",
+                    "description": "Optional. Default: post"
+                  },
+                  "postTypeOverrides": {
+                    "type": "object",
+                    "description": "Optional. Per-platform post type override. E.g. { \"instagram\": \"reel\", \"facebook\": \"story\" }. A type the platform does not offer is rejected with 400 VALIDATION_ERROR (previously it silently fell back to the platform default). Instagram: feed_photo, feed_video, reel, story, carousel. Facebook: post, reel, story. TikTok: video, photo_slideshow. YouTube: video, short. LinkedIn: post, multi_image. Pinterest: pin, video_pin, carousel. GMB: standard, event, offer. Snapchat: story, saved_story, spotlight."
+                  },
+                  "platformSpecific": {
+                    "$ref": "#/components/schemas/PlatformSpecific",
+                    "description": "Optional. Platform-specific options"
+                  },
+                  "platformContent": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Optional. Per-platform content overrides mapping platform name to a plain string, e.g. { \"x\": \"Short version\" }. Values must be strings \u2014 nested objects are rejected with 400 VALIDATION_ERROR."
+                  },
+                  "deleteMediaAfterPublish": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional. Delete uploaded media right after publishing (default: false \u2014 media is kept and reclaimed by the 3-month retention sweep). Forced to false when the post has a repeatSchedule."
+                  },
+                  "threadParts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string"
+                        },
+                        "mediaFileIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "description": "Optional. Required when postFormat is 'thread' (min 2 parts)"
+                  },
+                  "platformThreadParts": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "content": {
+                            "type": "string"
+                          },
+                          "mediaFileIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "description": "Optional. Per-platform thread overrides, e.g. { \"x\": [{ \"content\": \"Part 1\" }] }. Part content must be a plain string \u2014 non-string shapes are rejected with 400 VALIDATION_ERROR."
+                  },
+                  "repeatSchedule": {
+                    "type": "object",
+                    "description": "Optional. Recurring schedule config",
+                    "properties": {
+                      "frequency": {
+                        "type": "string",
+                        "enum": [
+                          "daily",
+                          "weekly",
+                          "biweekly",
+                          "monthly"
+                        ]
+                      },
+                      "daysOfWeek": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        },
+                        "description": "0=Sun, 6=Sat"
+                      },
+                      "dayOfMonth": {
+                        "type": "integer"
+                      },
+                      "timeOfDay": {
+                        "type": "string",
+                        "description": "HH:MM format"
+                      },
+                      "timezone": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "autoPlugEnabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional. Auto-post a comment when the post reaches a like threshold"
+                  },
+                  "autoPlugText": {
+                    "type": "string",
+                    "description": "Optional. The promotional comment text for auto-plug"
+                  },
+                  "autoPlugThreshold": {
+                    "type": "integer",
+                    "default": 50,
+                    "description": "Optional. Number of likes to trigger auto-plug (default: 50)"
+                  },
+                  "autoRepostEnabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional. Auto-repost/reshare when the post reaches a like threshold"
+                  },
+                  "autoRepostThreshold": {
+                    "type": "integer",
+                    "default": 100,
+                    "description": "Optional. Number of likes to trigger auto-repost (default: 100)"
+                  },
+                  "requestApproval": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional. Set true to hold a scheduled post for team approval (approvalStatus becomes 'pending'). Forced on server-side for roles without post:publish (contributors), regardless of this flag."
+                  },
+                  "linkTrackingOverride": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ],
+                    "default": null,
+                    "description": "Per-post override for link tracking (bulkpubli.sh). `true` forces links in this post to be shortened and their clicks counted, `false` forces them to publish as written, and `null` (the default) inherits the organization's Link Tracking setting. Shortening happens at publish time, per channel, so two accounts on the same platform get distinct codes; it is skipped for a channel when the rewrite would push the post past that platform's character limit."
+                  }
+                }
+              },
+              "examples": {
+                "simple": {
+                  "summary": "Simple text post to X",
+                  "value": {
+                    "content": "Hello world!",
+                    "channels": [
+                      {
+                        "channelId": 1,
+                        "platform": "x"
+                      }
+                    ],
+                    "status": "draft"
+                  }
+                },
+                "scheduled-multi": {
+                  "summary": "Scheduled post to multiple platforms",
+                  "value": {
+                    "content": "Check out our new feature!",
+                    "mediaFiles": [
+                      1,
+                      2
+                    ],
+                    "status": "scheduled",
+                    "scheduledAt": "2026-03-27T14:00:00Z",
+                    "timezone": "America/New_York",
+                    "channels": [
+                      {
+                        "channelId": 1,
+                        "platform": "x"
+                      },
+                      {
+                        "channelId": 3,
+                        "platform": "linkedin"
+                      }
+                    ]
+                  }
+                },
+                "linkedin-carousel": {
+                  "summary": "LinkedIn PDF carousel",
+                  "value": {
+                    "content": "10 tips for social media growth",
+                    "mediaFiles": [
+                      10,
+                      11,
+                      12,
+                      13,
+                      14
+                    ],
+                    "channels": [
+                      {
+                        "channelId": 3,
+                        "platform": "linkedin"
+                      }
+                    ],
+                    "postTypeOverrides": {
+                      "linkedin": "pdf_carousel"
+                    },
+                    "platformSpecific": {
+                      "linkedin": {
+                        "carouselTitle": "10 Tips"
+                      }
+                    },
+                    "status": "draft"
+                  }
+                },
+                "tiktok-with-controls": {
+                  "summary": "TikTok video with content controls",
+                  "value": {
+                    "content": "Tutorial video",
+                    "mediaFiles": [
+                      20
+                    ],
+                    "channels": [
+                      {
+                        "channelId": 5,
+                        "platform": "tiktok"
+                      }
+                    ],
+                    "platformSpecific": {
+                      "tiktok": {
+                        "privacyLevel": "PUBLIC_TO_EVERYONE",
+                        "disableComment": false,
+                        "disableDuet": true,
+                        "disableStitch": true,
+                        "isAigc": false,
+                        "brandContentToggle": false,
+                        "brandOrganicToggle": false
+                      }
+                    },
+                    "status": "scheduled",
+                    "scheduledAt": "2026-03-28T18:00:00Z"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Post created"
+          },
+          "400": {
+            "description": "Validation error (character limit, missing fields)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Platform not on the plan (`FEATURE_DISABLED`) or switched off server-side (`PLATFORM_DISABLED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Quota exceeded"
+          }
+        },
+        "operationId": "createPost",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/posts/{id}": {
+      "get": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Get post",
+        "description": "Returns full post details including recurringScheduleId and recurringSchedule when the post is linked to a recurring schedule.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Post details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "operationId": "getPost",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:read"
+            ]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Update post",
+        "description": "Update a draft, scheduled, failed, or partial post. Note: the per-platform object fields (platformSpecific, platformContent, postTypeOverrides, platformThreadParts) are replaced wholesale, not merged \u2014 send the complete object including keys for every platform you want to keep. Sending a partial object (e.g. only one platform's content) removes the stored values for all other platforms. Editing a failed or partial post silently resets its status to draft and clears failed platform results (they revert to pending). Send the optional status field ('draft' or 'scheduled') to move a post between draft and scheduled; other status values are rejected. To publish immediately, use POST /api/posts/{id}/publish instead.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string"
+                  },
+                  "mediaFiles": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "scheduledAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "scheduled"
+                    ],
+                    "description": "Move the post between draft and scheduled. Setting 'scheduled' requires a future scheduledAt (in this body or already stored) and at least one channel; setting 'draft' unschedules it. Any other value is rejected. Omit to leave the status unchanged (failed/partial posts still auto-reset to draft on edit). To publish immediately, use POST /api/posts/{id}/publish instead."
+                  },
+                  "channels": {
+                    "type": "array"
+                  },
+                  "labels": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "platformSpecific": {
+                    "type": "object",
+                    "description": "Per-platform options, keyed by platform. Replaced wholesale on update (not merged)."
+                  },
+                  "platformContent": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Per-platform content overrides, keyed by platform; values must be plain strings (nested objects are rejected with 400 VALIDATION_ERROR). Replaced wholesale on update."
+                  },
+                  "postTypeOverrides": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Per-platform post type overrides, keyed by platform. Replaced wholesale on update."
+                  },
+                  "postFormat": {
+                    "type": "string",
+                    "enum": [
+                      "post",
+                      "thread"
+                    ],
+                    "description": "Post format. Defaults to 'post'."
+                  },
+                  "threadParts": {
+                    "type": "array",
+                    "description": "Thread segments (required when postFormat is 'thread'; at least 2). Each part: { content, mediaFileIds }.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string"
+                        },
+                        "mediaFileIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "requestApproval": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional. Set true to hold a scheduled post for team approval (approvalStatus becomes 'pending'). Forced on server-side for roles without post:publish (contributors), regardless of this flag."
+                  },
+                  "linkTrackingOverride": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ],
+                    "default": null,
+                    "description": "Per-post override for link tracking (bulkpubli.sh). `true` forces links in this post to be shortened and their clicks counted, `false` forces them to publish as written, and `null` (the default) inherits the organization's Link Tracking setting. Shortening happens at publish time, per channel, so two accounts on the same platform get distinct codes; it is skipped for a channel when the rewrite would push the post past that platform's character limit."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated post"
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        },
+        "operationId": "updatePost",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Attach or detach a post's recurring schedule",
+        "description": "Narrow companion to PUT. This endpoint ONLY accepts `recurringScheduleId` \u2014 passing `null` detaches the post from its repeat schedule (and deactivates that schedule if it is left orphaned).\n\nAny other field (including `status` and `scheduledAt`) is rejected with **400** and `unsupportedFields` listing what was sent. **To edit a post \u2014 including moving a draft to `scheduled` \u2014 use `PUT /api/posts/{id}` with `{ \"status\": \"scheduled\", \"scheduledAt\": \"<future ISO 8601>\" }`.**",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "recurringScheduleId": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "description": "Repeat-schedule id to attach, or null to detach."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated post",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field other than recurringScheduleId was sent; use PUT instead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Post not found"
+          }
+        },
+        "operationId": "patchPost",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Delete post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        },
+        "operationId": "deletePost",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/posts/{id}/publish": {
+      "post": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Publish immediately",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Publishing started"
+          },
+          "403": {
+            "description": "Role cannot publish, or a target platform is switched off server-side (`PLATFORM_DISABLED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Requires a role with post:publish \u2014 contributors get 403 APPROVAL_REQUIRED and must submit the post for approval instead (create/update with requestApproval, then a teammate approves). Publishing a pending/rejected post as an approver implicitly approves it.\n\nReturns **403** with `code: \"PLATFORM_DISABLED\"` when one of the post's platforms has been switched off server-side (`PLATFORM_<NAME>=off`); the post is left untouched. Check `GET /api/platforms` for current availability. A channel's *variant* can be off on its own \u2014 LinkedIn company pages are gated separately from personal profiles \u2014 in which case the error also carries `accountType` (e.g. `\"organization\"`) naming the variant that is unavailable.",
+        "operationId": "publishPost",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/posts/{id}/retry": {
+      "post": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Retry failed platforms",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Retry queued"
+          },
+          "400": {
+            "description": "No failed platforms, or unconfirmed platforms present without republish: true (code UNCONFIRMED_REQUIRES_REPUBLISH)"
+          }
+        },
+        "description": "Re-queues this post's failed platforms. Platforms in status 'unconfirmed' (the publish request may have reached the platform but its response was lost \u2014 the post may already be live) are NOT retried unless the body passes republish: true; without it the request fails with code UNCONFIRMED_REQUIRES_REPUBLISH. Check the account before passing republish: true \u2014 retrying an unconfirmed platform can duplicate the post.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "republish": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Explicit opt-in to also retry platforms in status 'unconfirmed'. Their publish may have already gone through; retrying can create a duplicate post."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "retryPost",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/posts/{id}/metrics": {
+      "get": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Get post metrics",
+        "description": "Per-platform engagement metrics with history snapshots.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metrics per platform.\n\nEach entry in `platforms` carries `metricsSupported` (false when the platform exposes no readable per-post statistics API \u2014 Google Business, Telegram, Tumblr (which reports only a combined note count that cannot be split into likes/reblogs/replies), and LinkedIn personal/profile channels) and `supportedMetrics`, the list of metric keys that platform's API can populate. Every other key on `latest` is stored as 0 by the metrics sync regardless of what the platform returned, so those zeroes mean \u201cnot reported\u201d and must not be presented as measurements.\n\nEach platform entry carries `linkClicks`, and `totals.linkClicks` sums them: clicks on bulkpubli.sh short links in this post, measured by openPublish. It sits OUTSIDE `latest` because it is not a platform snapshot \u2014 a platform that reports nothing still has link clicks \u2014 and is distinct from the platform-reported `clicks` field. `supportedMetrics` therefore always includes `linkClicks`, even when `metricsSupported` is false.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "postId": {
+                      "type": "integer"
+                    },
+                    "platforms": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "platform": {
+                            "type": "string"
+                          },
+                          "platformPostId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "platformUrl": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "metricsSupported": {
+                            "type": "boolean",
+                            "description": "false => this channel can never have per-post metrics."
+                          },
+                          "supportedMetrics": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "impressions",
+                                "reach",
+                                "likes",
+                                "comments",
+                                "shares",
+                                "saves",
+                                "clicks",
+                                "videoViews",
+                                "engagementRate"
+                              ]
+                            },
+                            "description": "Metric keys this platform's API can report. Keys not listed are stored zeroes, not measurements."
+                          },
+                          "latest": {
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
+                          "history": {
+                            "type": "array"
+                          }
+                        }
+                      }
+                    },
+                    "totals": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getPostMetrics",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/posts/{id}/engagement": {
+      "get": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Get post engagement (commenters + reactors)",
+        "description": "Returns per-platform lists of the people/pages who commented on or reacted to a published post \u2014 with name, handle/headline, profile photo and profile URL when the platform exposes them.\n\nEleven of the sixteen platforms return engagement: Facebook, Instagram, X, LinkedIn, YouTube, Threads, Bluesky, Mastodon, Reddit, Discord and Tumblr. Platforms that expose commenters but never individual likers (Instagram, YouTube, Threads, Reddit) populate `comments` only and set `reactionsUnsupported: true` plus an explanatory `notice`.\n\nExactly five platforms have no comment API at all and return `unsupported: true` with a `notice` saying why: **TikTok** (comments are Research-API only), **Pinterest** (v5 exposes no Pin comments), **Google Business** (local posts have no comment surface; reviews attach to the location, not the post), **Telegram** (a bot learns of comments only through pushed updates, so they cannot be read on request) and **Snapchat** (the Public Profile API reports reply counts only, never individual comments).\n\nPlatform-specific behaviour worth knowing: **X** bills for every read, so replies and likers are returned only when that channel has `metadata.metricsSyncEnabled` set (the same opt-in that governs X metrics) and the org is within its daily read budget \u2014 otherwise `comments`/`reactions` are empty and `notice` says which gate declined; X replies also come from recent search, which only covers the last 7 days. **Reddit** keeps votes anonymous, so it reports commenters only. **Tumblr** has no comments endpoint \u2014 replies and reblogs-with-commentary map to `comments`, and likes plus bare reblogs to `reactions`. **Discord** returns reactors plus the replies in a thread started from the message; plain channel replies are ordinary messages elsewhere in the channel and are not fetched.\n\n`engagement` is `null` (rather than an empty object) when the post was never published to that channel, or when the channel has no stored access token.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "commentsLimit",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Max comments per platform (default 25, max 100). Counts replies as well as top-level comments; when replies push a platform past the cap, `hasMoreComments` is true.",
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          },
+          {
+            "name": "reactionsLimit",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Max reactors per platform (default 25, max 100)",
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Engagement per platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "postId": {
+                      "type": "integer"
+                    },
+                    "platforms": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "platform": {
+                            "type": "string"
+                          },
+                          "platformPostId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "platformUrl": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "engagement": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "comments": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "createdAt": {
+                                      "type": "string"
+                                    },
+                                    "likeCount": {
+                                      "type": "integer"
+                                    },
+                                    "actor": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "handle": {
+                                          "type": "string"
+                                        },
+                                        "headline": {
+                                          "type": "string"
+                                        },
+                                        "profileImage": {
+                                          "type": "string"
+                                        },
+                                        "profileUrl": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    "parentId": {
+                                      "type": "string",
+                                      "description": "Set when this comment is a reply \u2014 the id of the comment it replies to. Absent for top-level comments. Clients can use it to nest replies; a parentId not present in the returned page should be rendered at top level."
+                                    }
+                                  }
+                                }
+                              },
+                              "reactions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "type": "string"
+                                    },
+                                    "createdAt": {
+                                      "type": "string"
+                                    },
+                                    "actor": {
+                                      "type": "object"
+                                    }
+                                  }
+                                }
+                              },
+                              "hasMoreComments": {
+                                "type": "boolean"
+                              },
+                              "hasMoreReactions": {
+                                "type": "boolean"
+                              },
+                              "unsupported": {
+                                "type": "boolean"
+                              },
+                              "notice": {
+                                "type": "string"
+                              },
+                              "reactionsUnsupported": {
+                                "type": "boolean",
+                                "description": "True when the platform exposes commenters but never individual likers (Threads, Instagram, YouTube). `reactions` is always empty; clients should hide any reactors UI rather than render an empty list."
+                              },
+                              "commentsNotice": {
+                                "type": "string",
+                                "description": "Why the COMMENT list specifically is empty, set whenever the comment read did not succeed (missing token, a gate declined \u2014 e.g. X analytics not enabled \u2014 the platform API errored, or the platform has no thread for this post, like a Discord message without a thread). `notice` mixes comment- and reaction-scoped messages; a client that renders only comments should show this field and treat an empty `comments` with `commentsNotice` absent as a genuine measured zero."
+                              }
+                            }
+                          },
+                          "error": {
+                            "type": "string",
+                            "description": "Route-level failure for this platform: the live read threw, or the post is published (`platformPostId` set) but the channel has no stored access token (needs reconnecting). When set alongside `engagement: null` the post IS live on this platform \u2014 the data simply could not be read."
+                          },
+                          "accountName": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Name of the connected account/Page the content was read from. Shown in the UI so the source is identifiable."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Post not found"
+          }
+        },
+        "operationId": "getPostEngagement",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/posts/{id}/story": {
+      "post": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Publish as Story",
+        "description": "Publish the post's first media as a Facebook or Instagram Story (disappears after 24h). The post must have media and a published platform entry for the target platform.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "platform"
+                ],
+                "properties": {
+                  "platform": {
+                    "type": "string",
+                    "enum": [
+                      "facebook",
+                      "instagram"
+                    ],
+                    "description": "**required** \u2014 Target platform for the story"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Story published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "postId": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid platform, no media, or no matching platform entry"
+          },
+          "404": {
+            "description": "Post not found"
+          }
+        },
+        "operationId": "publishStory",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/posts/bulk": {
+      "post": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Bulk actions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action",
+                  "postIds"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "delete",
+                      "retry",
+                      "reschedule"
+                    ]
+                  },
+                  "postIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "scheduledAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk action completed"
+          }
+        },
+        "operationId": "bulkCreatePosts",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/posts/queue-slot": {
+      "get": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Get next available queue slot",
+        "description": "Returns the next available time slot for scheduling a post based on your queue settings.",
+        "parameters": [
+          {
+            "name": "timezone",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 IANA timezone (default: UTC)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Next available queue slot"
+          }
+        },
+        "operationId": "getQueueSlot",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/channels": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "List channels",
+        "description": "Returns all connected channels including tokenExpiresAt and metadata per channel.",
+        "parameters": [
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Filter by active status (default: true)",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "channels": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Channel"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "listChannels",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "channels:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/channels/{id}": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Get channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel details"
+          }
+        },
+        "operationId": "getChannel",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "channels:read"
+            ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Disconnect channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Disconnected"
+          }
+        },
+        "operationId": "deleteChannel",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/channels/{id}/health": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Check channel health",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Health status"
+          }
+        },
+        "operationId": "getChannelHealth",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "channels:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/channels/{id}/options": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Get platform-specific options for a channel",
+        "description": "Returns boards (Pinterest), playlists (YouTube), or organizations (LinkedIn) depending on the channel's platform. Returns empty items for platforms without sub-resources.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Channel ID",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Platform options",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "boards",
+                        "playlists",
+                        "organizations",
+                        null
+                      ]
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getChannelOptions",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "channels:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/channels/{id}/mentions": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Search users for @mention",
+        "description": "Search for users on a channel's platform to @mention in post content. Currently supported on X (Twitter) and Bluesky. Other platforms return an empty array.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Channel ID",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Search query (max 100 chars)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "handle": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "profileImage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "searchChannelMentions",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "channels:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/media": {
+      "get": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "List media files",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Page number (default: 1)",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Items per page (default: 20)",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Search by filename",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "labelIds",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Comma-separated label IDs",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Media list"
+          }
+        },
+        "operationId": "listMedia",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "media:read"
+            ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Upload media (single request)",
+        "description": "Upload an image or video file in one multipart request (server relays to storage). Max 100MB (for videos up to 1GB use the multipart endpoints: /api/media/multipart/create \u2192 PUT each part \u2192 /api/media/multipart/complete). Formats: JPEG, PNG, WebP, GIF, MP4, QuickTime, WebM. Browser clients should prefer the faster direct-to-storage flow: POST /api/media/presign then PUT the file to the returned URL then POST /api/media/finalize. MP4/QuickTime files must be complete (contain a moov atom) \u2014 a video captured mid-encode or truncated in transit is rejected with 400 at upload instead of failing at publish time. The same check runs on /api/media/finalize (via ranged reads) and on remote URL imports.",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "File uploaded"
+          }
+        },
+        "operationId": "uploadMedia",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "media:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/media/presign": {
+      "post": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Get a direct upload URL",
+        "description": "Step 1 of the direct-to-storage upload. Checks the storage quota and returns a presigned PUT URL plus the object key. PUT the file (max 100MB \u2014 videos up to 1GB go through the multipart endpoints instead) to `uploadUrl` with a matching `Content-Type` header, then call POST /api/media/finalize.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "contentType",
+                  "sizeBytes"
+                ],
+                "properties": {
+                  "contentType": {
+                    "type": "string",
+                    "description": "MIME type (JPEG, PNG, WebP, GIF, MP4, QuickTime, WebM)"
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "description": "Size of the file to upload in bytes"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Presigned URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "r2Key": {
+                      "type": "string"
+                    },
+                    "expiresIn": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid type or size"
+          },
+          "403": {
+            "description": "Storage quota exceeded"
+          }
+        },
+        "operationId": "presignMediaUpload",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "media:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/media/finalize": {
+      "post": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Finalize a direct upload",
+        "description": "Step 2 of the direct-to-storage upload. After the file is PUT to the presigned URL, this records the media file and queues thumbnail generation. The stored object is verified server-side (existence, size, magic bytes) before the record is created.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "r2Key",
+                  "fileName",
+                  "mimeType",
+                  "sizeBytes"
+                ],
+                "properties": {
+                  "r2Key": {
+                    "type": "string",
+                    "description": "Object key returned by /api/media/presign"
+                  },
+                  "fileName": {
+                    "type": "string"
+                  },
+                  "mimeType": {
+                    "type": "string"
+                  },
+                  "sizeBytes": {
+                    "type": "integer"
+                  },
+                  "width": {
+                    "type": "integer",
+                    "description": "**optional** \u2014 image/video width"
+                  },
+                  "height": {
+                    "type": "integer",
+                    "description": "**optional** \u2014 image/video height"
+                  },
+                  "duration": {
+                    "type": "integer",
+                    "description": "**optional** \u2014 video duration in seconds"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Media file created"
+          },
+          "400": {
+            "description": "Invalid key, missing object, or content mismatch"
+          },
+          "403": {
+            "description": "Storage quota exceeded"
+          }
+        },
+        "operationId": "finalizeMediaUpload",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "media:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/media/{id}": {
+      "get": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Get media file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Media details"
+          }
+        },
+        "operationId": "getMedia",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "media:read"
+            ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Delete media file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        },
+        "operationId": "deleteMedia",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "media:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/media/{id}/thumbnail": {
+      "get": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Get media thumbnail",
+        "description": "Redirects to the thumbnail URL for the given media file.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to thumbnail URL"
+          },
+          "404": {
+            "description": "Media not found or no thumbnail available"
+          }
+        },
+        "operationId": "getMediaThumbnail",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "media:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/media/{id}/labels": {
+      "get": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Get media labels",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Labels"
+          }
+        },
+        "operationId": "getMediaLabels",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "media:read"
+            ]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Set media labels",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "labelIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        },
+        "operationId": "setMediaLabels",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "media:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/analytics/summary": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Summary stats",
+        "description": "Post counts by status, platform, and day. The date window is capped at 30 days: `from` is silently clamped so that it is never more than 30 days before `to`.",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "description": "**required** \u2014 Start date (YYYY-MM-DD)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "description": "**required** \u2014 End date (YYYY-MM-DD)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 IANA timezone (e.g. `Asia/Karachi`) used for day boundaries and per-day bucketing. Defaults to `UTC`. Invalid names fall back to UTC.",
+            "schema": {
+              "type": "string",
+              "default": "UTC"
+            }
+          },
+          {
+            "name": "heatmap",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 set to `1` to include `publishedTimes` (raw publish timestamps for the posting-activity heatmap, up to 5000 entries). Omitted by default; `publishedTimes` is then an empty array.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Summary data"
+          }
+        },
+        "operationId": "getAnalyticsSummary",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "analytics:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/analytics/engagement": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Engagement metrics",
+        "description": "Impressions, reach, likes, comments, shares, saves, clicks, video views with per-platform breakdown and top posts. Results are cached for 5 minutes. The date window is capped at 30 days: `from` is silently clamped so that it is never more than 30 days before `to`.",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "description": "**required** \u2014 Start date (YYYY-MM-DD)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "description": "**required** \u2014 End date (YYYY-MM-DD)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "channelId",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Filter to a single channel",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "top",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Set to `1` to return only the ranked `topPosts` list; `allPosts` comes back as an empty array. Used by dashboards that render a short leaderboard and would otherwise download every post in the window.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "date",
+                "impressions",
+                "likes",
+                "comments",
+                "shares",
+                "linkClicks"
+              ],
+              "default": "date"
+            },
+            "description": "Sort field for `allPosts`. `linkClicks` sorts by bulkpubli.sh click count."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            },
+            "description": "Sort direction for `allPosts`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Engagement data including totalImpressions, totalReach, totalLikes, totalComments, totalShares, totalSaves, totalClicks, totalVideoViews, avgEngagementRate, byPlatform, byDay, topPosts, allPosts, and unmeasuredPlatforms.\n\n`unmeasuredPlatforms` lists platforms present in the window that cannot report per-post metrics at all \u2014 either the platform has no readable metrics API (Google Business, Telegram, Tumblr) or, for LinkedIn, the channel is a personal/profile account (share statistics are exposed only for organization pages). Their rows still appear in every total with zeroes, so a zero for one of these platforms means \"not reported\", not \"measured zero\". Each entry in a post's `platformMetrics` carries the same signal as `metricsSupported`.\n\nAll figures come from the stored `post_metrics` snapshot, synced every 6 hours (or on demand via `POST /api/analytics/refresh`) \u2014 not a live read of the platform.\n\n`metricSupport` maps each platform present in the window to the list of metric keys its API can actually report (`impressions`, `reach`, `likes`, `comments`, `shares`, `saves`, `clicks`, `videoViews`, `engagementRate`). Anything not listed is stored as 0 by the metrics sync because the platform has no such field \u2014 it is NOT a measurement. For example X reports impressions/likes/comments/shares/saves (bookmarks), so `reach`, `clicks` and `videoViews` are always 0 for X rows; Bluesky and Mastodon report no impressions, so `engagementRate` is always 0 for them; Pinterest reports no reach; YouTube reports no shares or reach; Reddit reports likes (score), comments and shares (crossposts) only; Discord reports likes (reaction counts) and comments (thread replies) only.\n\n`supportedTotals` is the union of `metricSupport` across the window \u2014 the org-wide `total*` fields are only measurements for keys listed here. A key absent from `supportedTotals` should be rendered as \u201cnot available\u201d (a dash), never as 0. `partialTotals` maps a supported metric key to the platforms in the window that do NOT report it, so a consumer can note that the total covers only a subset of posts.\n\nEach entry of a post's `platformMetrics` also carries `supportedMetrics` (same per-platform list) alongside `metricsSupported`.\n\nFacebook's `impressions`, `reach`, `clicks` and `engagementRate` come from the Page Insights edge and require the `read_insights` permission; without it they stay 0 even though the metric is listed as supported.\n\n`metricsDisabledChannels` lists channels published to in the window whose metrics sync is switched off, so their posts contribute zeroes to every total. X is the only platform this applies to today: its reads are billed, so per-post metrics sync is opt-in per channel (`metadata.metricsSyncEnabled`, toggled on the Channels page) and runs at most once every 7 days. `POST /api/analytics/refresh` will not produce X figures for a channel that has not opted in.\n\n`conditionalMetrics` maps a platform in the window to metrics that are supported but permission-gated \u2014 a 0 there means \"may not be readable\", not \"no such metric\". Today only Facebook appears, for `impressions`, `reach`, `clicks` and `engagementRate`.\n\nEach post in `topPosts`/`allPosts` carries both a post-level `engagementRate` and, inside `platformMetrics[]`, a per-channel `engagementRate`. They are NOT the same number: the post-level value is the mean of the post's channels that reported a non-zero rate, while `platformMetrics[].engagementRate` is that one channel's own rate (engagements \u00f7 impressions). Render the per-channel value next to per-channel counters \u2014 using the post-level average there shows one network's percentage beside another network's zeros. Both are basis points (325 = 3.25%).\n\n`totalLinkClicks` (and `linkClicks` on each entry of `byPlatform`, `byDay`, `topPosts`, `allPosts` and `platformMetrics`) counts clicks on bulkpubli.sh short links, measured by openPublish rather than reported by the platform. It is deliberately NOT folded into `totalClicks`/`clicks`, which are the platform's own click figures: one visit can register in both, so adding them would double-count. Because we measure it ourselves it is available on every platform, including those listed in `unmeasuredPlatforms`, and it appears in `supportedTotals`/`metricSupport` for all of them. Bot and link-preview traffic is excluded. Zero for organizations that have not enabled Link Tracking."
+          }
+        },
+        "operationId": "getAnalyticsEngagement",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "analytics:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/analytics/refresh": {
+      "post": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Trigger metrics sync",
+        "description": "Queue a background job to fetch latest metrics from all platforms and invalidate analytics cache.",
+        "responses": {
+          "200": {
+            "description": "Queued"
+          }
+        },
+        "operationId": "refreshAnalytics",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/analytics/account": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Account-level analytics",
+        "description": "Daily snapshots of followers, impressions, reach, and profile views per connected channel. Data is synced automatically every 4 hours.",
+        "parameters": [
+          {
+            "name": "channelId",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Filter to a single channel",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Start date (YYYY-MM-DD, default 30 days ago). Clamped to at most 30 days before the end date.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 End date (YYYY-MM-DD, default today)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account metrics with channel list.\n\n`engagementRate` on each row is ALWAYS `null`: no platform handler computes an account-level engagement rate (the `getAccountAnalytics` contract has no such field), so the stored column is its default 0 for every row. It is returned as null rather than 0 so it cannot be mistaken for a measured 0%. For a real rate, use the per-post `engagementRate` inside `platformMetrics[]` on `GET /api/analytics/engagement`.\n\n`websiteClicks` is populated by Google Business only; `profileViews` by Facebook only (`page_views_total`). Both are 0 for every other platform because no other handler reports them \u2014 not because the value was measured as zero.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "metrics": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": {
+                            "type": "string"
+                          },
+                          "channelId": {
+                            "type": "integer"
+                          },
+                          "platform": {
+                            "type": "string"
+                          },
+                          "followers": {
+                            "type": "integer"
+                          },
+                          "following": {
+                            "type": "integer"
+                          },
+                          "impressions": {
+                            "type": "integer"
+                          },
+                          "reach": {
+                            "type": "integer"
+                          },
+                          "profileViews": {
+                            "type": "integer"
+                          },
+                          "websiteClicks": {
+                            "type": "integer"
+                          },
+                          "engagementRate": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "channels": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "platform": {
+                            "type": "string"
+                          },
+                          "accountName": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getAccountAnalytics",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "analytics:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/labels": {
+      "get": {
+        "tags": [
+          "Labels"
+        ],
+        "summary": "List labels",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Filter by label type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "post",
+                "media"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Labels"
+          }
+        },
+        "operationId": "listLabels",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:read"
+            ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Labels"
+        ],
+        "summary": "Create label",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "color": {
+                    "type": "string",
+                    "default": "#6366f1"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "post",
+                      "media"
+                    ],
+                    "default": "post"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "operationId": "createLabel",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/labels/{id}": {
+      "put": {
+        "tags": [
+          "Labels"
+        ],
+        "summary": "Update label",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "color": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        },
+        "operationId": "updateLabel",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Labels"
+        ],
+        "summary": "Delete label",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        },
+        "operationId": "deleteLabel",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/schedules": {
+      "get": {
+        "tags": [
+          "Schedules"
+        ],
+        "summary": "List recurring schedules",
+        "responses": {
+          "200": {
+            "description": "Schedules"
+          }
+        },
+        "operationId": "listSchedules",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:read"
+            ]
+          }
+        ],
+        "description": "Returns every recurring schedule in the organization, newest first. Schedules created here are fully visible in the web app: they are listed and manageable (pause/resume/delete) on the Repeat Posts page, and each active schedule's upcoming runs are projected onto the Calendar. An occurrence materialises as a real post (carrying recurringScheduleId) only at its run time - GET /api/posts?recurring=true returns those generated posts, not the schedules themselves."
+      },
+      "post": {
+        "tags": [
+          "Schedules"
+        ],
+        "summary": "Create schedule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "frequency",
+                  "timeOfDay",
+                  "channelIds"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "frequency": {
+                    "type": "string",
+                    "enum": [
+                      "daily",
+                      "weekly",
+                      "biweekly",
+                      "monthly"
+                    ]
+                  },
+                  "dayOfWeek": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
+                  },
+                  "dayOfMonth": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 31
+                  },
+                  "timeOfDay": {
+                    "type": "string",
+                    "description": "HH:MM format"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  },
+                  "channelIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "contentTemplate": {
+                    "type": "string"
+                  },
+                  "isActive": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "postFormat": {
+                    "type": "string",
+                    "enum": [
+                      "post",
+                      "thread"
+                    ],
+                    "description": "Post format. Defaults to 'post'."
+                  },
+                  "threadParts": {
+                    "type": "array",
+                    "description": "Thread segments (required when postFormat is 'thread'; at least 2). Each part: { content, mediaFileIds }.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string"
+                        },
+                        "mediaFileIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "mediaFileIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "Media file IDs to attach to each generated post."
+                  },
+                  "requireApproval": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional. Hold every occurrence this schedule generates for team approval \u2014 each generated post lands with approvalStatus 'pending' and the scheduler skips it until an approver releases it via POST /api/posts/{id}/approve. Default false."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "operationId": "createSchedule",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ],
+        "description": "Creates a recurring schedule that generates and publishes a post from contentTemplate at each run time. No post exists until the first run: the schedule itself appears on the web app's Repeat Posts page (with pause/resume/delete) and its upcoming runs are projected onto the Calendar, while each fired occurrence becomes a post carrying recurringScheduleId."
+      }
+    },
+    "/api/schedules/{id}": {
+      "put": {
+        "tags": [
+          "Schedules"
+        ],
+        "summary": "Update schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "frequency": {
+                    "type": "string",
+                    "enum": [
+                      "daily",
+                      "weekly",
+                      "biweekly",
+                      "monthly"
+                    ]
+                  },
+                  "dayOfWeek": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
+                  },
+                  "dayOfMonth": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 31
+                  },
+                  "timeOfDay": {
+                    "type": "string",
+                    "description": "HH:MM format"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  },
+                  "channelIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "contentTemplate": {
+                    "type": "string"
+                  },
+                  "isActive": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "postFormat": {
+                    "type": "string",
+                    "enum": [
+                      "post",
+                      "thread"
+                    ],
+                    "description": "Post format. Defaults to 'post'."
+                  },
+                  "threadParts": {
+                    "type": "array",
+                    "description": "Thread segments (required when postFormat is 'thread'; at least 2). Each part: { content, mediaFileIds }.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string"
+                        },
+                        "mediaFileIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "mediaFileIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "Media file IDs to attach to each generated post."
+                  },
+                  "requireApproval": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional. Hold every occurrence this schedule generates for team approval \u2014 each generated post lands with approvalStatus 'pending' and the scheduler skips it until an approver releases it via POST /api/posts/{id}/approve. Default false."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "updateSchedule",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Schedules"
+        ],
+        "summary": "Delete schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        },
+        "operationId": "deleteSchedule",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "List notifications",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Page number (default: 1)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Items per page (default: 20)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "unreadOnly",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Show only unread notifications",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notifications"
+          }
+        },
+        "operationId": "listNotifications",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Mark as read",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "all": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Marked"
+          }
+        },
+        "operationId": "updateNotifications",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Delete notifications",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "all": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        },
+        "operationId": "deleteNotifications",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/preferences": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Get notification preferences",
+        "responses": {
+          "200": {
+            "description": "Preferences"
+          }
+        },
+        "operationId": "getNotificationPreferences",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Update preferences",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "emailOnFailure": {
+                    "type": "boolean"
+                  },
+                  "emailDailyDigest": {
+                    "type": "boolean"
+                  },
+                  "emailOnTokenExpiry": {
+                    "type": "boolean"
+                  },
+                  "inAppPublished": {
+                    "type": "boolean"
+                  },
+                  "inAppFailed": {
+                    "type": "boolean"
+                  },
+                  "inAppScheduleReminder": {
+                    "type": "boolean"
+                  },
+                  "inAppTokenExpiry": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        },
+        "operationId": "updateNotificationPreferences",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/link-preview": {
+      "get": {
+        "tags": [
+          "Utilities"
+        ],
+        "summary": "Preview link metadata",
+        "description": "Fetch OpenGraph metadata from a URL. SSRF-protected.",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "**required** \u2014 HTTP/HTTPS URL to preview",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Link metadata"
+          }
+        },
+        "operationId": "getLinkPreview",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/activity": {
+      "get": {
+        "tags": [
+          "Utilities"
+        ],
+        "summary": "Activity log",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Page number (default: 1)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Items per page (default: 20)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Filter by action type",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource",
+            "in": "query",
+            "required": false,
+            "description": "**optional** \u2014 Filter by resource type",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activities"
+          }
+        },
+        "operationId": "listActivity",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/channel-sets": {
+      "get": {
+        "tags": [
+          "Channel Sets"
+        ],
+        "summary": "List channel sets",
+        "description": "Saved channel groupings for one-click multi-channel targeting.",
+        "responses": {
+          "200": {
+            "description": "Channel sets"
+          }
+        },
+        "operationId": "listChannelSets",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "channels:read"
+            ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Channel Sets"
+        ],
+        "summary": "Create channel set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "channelIds"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "channelIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "minItems": 1,
+                    "description": "IDs of channels in your organization"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Invalid name or channelIds"
+          },
+          "409": {
+            "description": "Duplicate name"
+          }
+        },
+        "operationId": "createChannelSet",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/channel-sets/{id}": {
+      "put": {
+        "tags": [
+          "Channel Sets"
+        ],
+        "summary": "Update channel set",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "channelIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "minItems": 1,
+                    "description": "IDs of channels in your organization"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Duplicate name"
+          }
+        },
+        "operationId": "updateChannelSet",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Channel Sets"
+        ],
+        "summary": "Delete channel set",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "operationId": "deleteChannelSet",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/rss-feeds": {
+      "get": {
+        "tags": [
+          "RSS Autopost"
+        ],
+        "summary": "List RSS feeds",
+        "description": "RSS/Atom feeds polled every 15 minutes; new items become posts. Polling uses conditional GET (ETag/Last-Modified) and exponential backoff on errors (15 minutes doubling to 24 hours); a feed is automatically disabled after 20 consecutive failed polls (`enabled` becomes false and `lastError` explains why). The first successful poll baselines the feed's existing backlog without posting it.",
+        "responses": {
+          "200": {
+            "description": "Feeds"
+          }
+        },
+        "operationId": "listRssFeeds",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "RSS Autopost"
+        ],
+        "summary": "Add RSS feed",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "feedUrl",
+                  "channelIds"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "feedUrl": {
+                    "type": "string",
+                    "description": "Public RSS 2.0 or Atom feed URL"
+                  },
+                  "channelIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "minItems": 1
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "publish"
+                    ],
+                    "default": "draft",
+                    "description": "draft = new items become drafts for review; publish = auto-published"
+                  },
+                  "fieldMapping": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "description": "Per-feed field mapping controlling how an RSS/Atom item becomes post content. null (default) uses the built-in mapping: template \"{title}\\n\\n{link}\", no media, stripHtml true, smart truncation. Media selection is post-level (media attaches to the post, not a single channel); per-channel overrides cover text only, and channels on the same platform share one rendered text (written to the post's platformContent, as in the composer). Channels whose platform requires media (e.g. Instagram, TikTok, YouTube) are skipped for items lacking a usable enclosure, with the reason recorded in the activity log.",
+                    "properties": {
+                      "template": {
+                        "type": "string",
+                        "maxLength": 2000,
+                        "default": "{title}\n\n{link}",
+                        "description": "Caption template. Standard tokens: {title} {link} {description} {content} {author} {categories} {feedName}. Any of a feed item's own extra leaf fields (namespaced or not, e.g. {publisher}) can also be used as {fieldName} (lowercased localName); the editor surfaces a feed's real fields as pills after a preview. A line whose tokens all render empty is dropped."
+                      },
+                      "mediaField": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "image",
+                          "video",
+                          "auto"
+                        ],
+                        "default": "none",
+                        "description": "Which item enclosure to import and attach: none, the item image, the item video, or auto (video if present, else image). The file is re-hosted to your media library; if the import fails the post is created without media."
+                      },
+                      "stripHtml": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Strip HTML tags/entities from {title}/{description}/{content}."
+                      },
+                      "truncate": {
+                        "type": "string",
+                        "enum": [
+                          "smart",
+                          "hard",
+                          "skip"
+                        ],
+                        "default": "smart",
+                        "description": "When rendered text exceeds the platform character limit: smart = trim at a word boundary keeping a trailing link line; hard = cut at the limit; skip = don't post to that channel."
+                      },
+                      "hashtags": {
+                        "type": "string",
+                        "maxLength": 500,
+                        "default": "",
+                        "description": "Appended after the rendered template."
+                      },
+                      "channelOverrides": {
+                        "type": "object",
+                        "description": "Per-channel text overrides keyed by channel id (as a string). Each override may set template, hashtags, stripHtml, truncate; mediaField cannot be overridden per channel.",
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "template": {
+                              "type": "string",
+                              "maxLength": 2000
+                            },
+                            "hashtags": {
+                              "type": "string",
+                              "maxLength": 500
+                            },
+                            "stripHtml": {
+                              "type": "boolean"
+                            },
+                            "truncate": {
+                              "type": "string",
+                              "enum": [
+                                "smart",
+                                "hard",
+                                "skip"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "requireApproval": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional. Hold items auto-published from this feed for team approval \u2014 each generated post lands with approvalStatus 'pending' and waits for POST /api/posts/{id}/approve. Only meaningful when mode is 'publish' (draft items never publish on their own). Default false."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Invalid input"
+          }
+        },
+        "description": "Create an RSS/Atom feed. Plan-gated: max feeds per org (Free 1, Pro 10, Business 50) and auto-publish mode (`mode: \"publish\"`) is paid-only \u2014 Free is draft-only and a `publish` request returns 403. Over the feed limit returns 403. Feed poll cadence is also per-plan (Free 60 min, Pro 30 min, Business 15 min).",
+        "operationId": "createRssFeed",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/rss-feeds/{id}": {
+      "put": {
+        "tags": [
+          "RSS Autopost"
+        ],
+        "summary": "Update RSS feed",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "feedUrl": {
+                    "type": "string",
+                    "description": "Public RSS 2.0 or Atom feed URL"
+                  },
+                  "channelIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "minItems": 1
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "publish"
+                    ],
+                    "default": "draft",
+                    "description": "draft = new items become drafts for review; publish = auto-published"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "fieldMapping": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "description": "Per-feed field mapping controlling how an RSS/Atom item becomes post content. null (default) uses the built-in mapping: template \"{title}\\n\\n{link}\", no media, stripHtml true, smart truncation. Media selection is post-level (media attaches to the post, not a single channel); per-channel overrides cover text only, and channels on the same platform share one rendered text (written to the post's platformContent, as in the composer). Channels whose platform requires media (e.g. Instagram, TikTok, YouTube) are skipped for items lacking a usable enclosure, with the reason recorded in the activity log. Pass null to clear back to the default mapping.",
+                    "properties": {
+                      "template": {
+                        "type": "string",
+                        "maxLength": 2000,
+                        "default": "{title}\n\n{link}",
+                        "description": "Caption template. Standard tokens: {title} {link} {description} {content} {author} {categories} {feedName}. Any of a feed item's own extra leaf fields (namespaced or not, e.g. {publisher}) can also be used as {fieldName} (lowercased localName); the editor surfaces a feed's real fields as pills after a preview. A line whose tokens all render empty is dropped."
+                      },
+                      "mediaField": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "image",
+                          "video",
+                          "auto"
+                        ],
+                        "default": "none",
+                        "description": "Which item enclosure to import and attach: none, the item image, the item video, or auto (video if present, else image). The file is re-hosted to your media library; if the import fails the post is created without media."
+                      },
+                      "stripHtml": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Strip HTML tags/entities from {title}/{description}/{content}."
+                      },
+                      "truncate": {
+                        "type": "string",
+                        "enum": [
+                          "smart",
+                          "hard",
+                          "skip"
+                        ],
+                        "default": "smart",
+                        "description": "When rendered text exceeds the platform character limit: smart = trim at a word boundary keeping a trailing link line; hard = cut at the limit; skip = don't post to that channel."
+                      },
+                      "hashtags": {
+                        "type": "string",
+                        "maxLength": 500,
+                        "default": "",
+                        "description": "Appended after the rendered template."
+                      },
+                      "channelOverrides": {
+                        "type": "object",
+                        "description": "Per-channel text overrides keyed by channel id (as a string). Each override may set template, hashtags, stripHtml, truncate; mediaField cannot be overridden per channel.",
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "template": {
+                              "type": "string",
+                              "maxLength": 2000
+                            },
+                            "hashtags": {
+                              "type": "string",
+                              "maxLength": 500
+                            },
+                            "stripHtml": {
+                              "type": "boolean"
+                            },
+                            "truncate": {
+                              "type": "string",
+                              "enum": [
+                                "smart",
+                                "hard",
+                                "skip"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "requireApproval": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional. Hold items auto-published from this feed for team approval \u2014 each generated post lands with approvalStatus 'pending' and waits for POST /api/posts/{id}/approve. Only meaningful when mode is 'publish' (draft items never publish on their own). Default false."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "operationId": "updateRssFeed",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "RSS Autopost"
+        ],
+        "summary": "Delete RSS feed",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "operationId": "deleteRssFeed",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/media/multipart/create": {
+      "post": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Start multipart upload (large videos, up to 1GB)",
+        "description": "Step 1 of the chunked direct-to-storage upload for large files. Returns an uploadId, the fixed part size (10MB), and a presigned PUT URL per part. Upload each 10MB slice of the file to its URL (a failed part can be retried on its own \u2014 a network drop never restarts the whole file), collect each response's ETag header, then call /api/media/multipart/complete.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "contentType",
+                  "sizeBytes"
+                ],
+                "properties": {
+                  "contentType": {
+                    "type": "string",
+                    "description": "One of the allowed media MIME types"
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "description": "Exact file size. Videos up to 1GB; images up to 100MB."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "uploadId, r2Key, partSize, and presigned partUrls"
+          },
+          "400": {
+            "description": "Disallowed type or file too large"
+          }
+        },
+        "operationId": "createMultipartUpload",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "media:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/media/multipart/complete": {
+      "post": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Complete multipart upload",
+        "description": "Step 2: assembles the uploaded parts, verifies the stored object (existence, size, content magic bytes, storage quota) and records the media file. Same verification and response shape as /api/media/finalize.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "r2Key",
+                  "uploadId",
+                  "parts",
+                  "fileName",
+                  "mimeType",
+                  "sizeBytes"
+                ],
+                "properties": {
+                  "r2Key": {
+                    "type": "string"
+                  },
+                  "uploadId": {
+                    "type": "string"
+                  },
+                  "parts": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "partNumber",
+                        "etag"
+                      ],
+                      "properties": {
+                        "partNumber": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "etag": {
+                          "type": "string",
+                          "description": "ETag response header from the part PUT"
+                        }
+                      }
+                    }
+                  },
+                  "fileName": {
+                    "type": "string"
+                  },
+                  "mimeType": {
+                    "type": "string"
+                  },
+                  "sizeBytes": {
+                    "type": "integer"
+                  },
+                  "width": {
+                    "type": "integer"
+                  },
+                  "height": {
+                    "type": "integer"
+                  },
+                  "duration": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Media file recorded"
+          },
+          "400": {
+            "description": "Assembly or verification failed"
+          }
+        },
+        "operationId": "completeMultipartUpload",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "media:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/media/multipart/abort": {
+      "post": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Abort multipart upload",
+        "description": "Cancel an in-progress chunked upload and free its stored parts.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "r2Key",
+                  "uploadId"
+                ],
+                "properties": {
+                  "r2Key": {
+                    "type": "string"
+                  },
+                  "uploadId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Aborted"
+          }
+        },
+        "operationId": "abortMultipartUpload",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "media:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/posts/{id}/approve": {
+      "post": {
+        "tags": [
+          "Posts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "summary": "Approve a pending post",
+        "description": "Requires a role with post:approve (owner, admin, approver). Releases a post with approvalStatus 'pending': it publishes at its scheduled time, or immediately if that time has already passed. The author is notified in-app.",
+        "operationId": "approvePost",
+        "responses": {
+          "200": {
+            "description": "The approved post",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Post is not awaiting approval"
+          },
+          "403": {
+            "description": "Role lacks post:approve"
+          },
+          "404": {
+            "description": "Post not found"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/posts/{id}/reject": {
+      "post": {
+        "tags": [
+          "Posts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "summary": "Reject a pending post",
+        "description": "Requires a role with post:approve. The post returns to draft with approvalStatus 'rejected' and the optional reason; the author is notified and can edit + reschedule to resubmit for approval.",
+        "operationId": "rejectPost",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "Optional. Shown to the author (in-app notification + on the post)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The rejected post",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Post is not awaiting approval"
+          },
+          "403": {
+            "description": "Role lacks post:approve"
+          },
+          "404": {
+            "description": "Post not found"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/platforms": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "List platforms and their availability",
+        "description": "Returns every social platform openPublish supports, together with its current availability. Use this to render an accurate \"temporarily unavailable\" or \"connections paused\" state rather than assuming every platform can be connected or published to.\n\nPlatforms that are switched off are still listed, with `enabled: false` and a `reason`. `envVar` is only included for organization owners and admins.\n\nA platform may also expose `variants` \u2014 sub-platforms gated separately because the vendor reviews them as a separate app. LinkedIn reports `variants.organization` for company pages; personal-profile availability is the platform-level state.",
+        "responses": {
+          "200": {
+            "description": "Platform list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "platforms": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlatformAvailability"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "operationId": "listPlatforms",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "channels:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/push/tokens": {
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Register a mobile push token",
+        "description": "Registers (or refreshes) an Expo push token for the authenticated user. Used by the openPublish mobile app; tokens are upserted by value, so a device that switches accounts is reassigned to the current user.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token",
+                  "platform"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "Expo push token, e.g. ExponentPushToken[xxxx]"
+                  },
+                  "platform": {
+                    "type": "string",
+                    "enum": [
+                      "ios",
+                      "android"
+                    ]
+                  },
+                  "deviceName": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Registered"
+          },
+          "400": {
+            "description": "Invalid token or platform"
+          }
+        },
+        "operationId": "registerPushToken",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Unregister a mobile push token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Unregistered"
+          }
+        },
+        "operationId": "unregisterPushToken",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/api-keys": {
+      "get": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "List API keys",
+        "responses": {
+          "200": {
+            "description": "API keys (secrets masked)"
+          }
+        },
+        "operationId": "listApiKeys",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Create API key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created (full key shown once)"
+          }
+        },
+        "operationId": "createApiKey",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/api-keys/usage": {
+      "get": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "API usage stats",
+        "description": "Returns today's API call count, daily limit based on plan, and per-key breakdown. Daily limits: Free 100, Pro 5,000, Business 50,000.",
+        "responses": {
+          "200": {
+            "description": "Usage data with today's count, limit, plan, and per-key breakdown"
+          }
+        },
+        "operationId": "getApiKeyUsage",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/api-keys/usage/history": {
+      "get": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "API usage history",
+        "description": "Returns daily API call counts for the last N days (default 30, max 90). Includes today's live count from Redis + historical data from DB.",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "description": "Number of days (default 30, max 90)",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of { date, count } entries"
+          }
+        },
+        "operationId": "getApiKeyUsageHistory",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/api-keys/{id}": {
+      "delete": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Delete API key",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        },
+        "operationId": "deleteApiKey",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    }
+  }
+}

@@ -35,12 +35,6 @@ const steps: Step[] = [
     href: '/compose',
     cta: 'Schedule',
   },
-  {
-    label: 'Set up repeat posts',
-    description: 'Automatically repost content daily, weekly, or monthly.',
-    href: '/repeat-posts',
-    cta: 'Repeat',
-  },
 ];
 
 export default function GettingStartedGuide({ channelCount, postCount, scheduledCount }: Props) {
@@ -51,20 +45,14 @@ export default function GettingStartedGuide({ channelCount, postCount, scheduled
       return false;
     }
   });
-  const { data: _schedData } = useApi<any[] | { schedules?: any[] }>('/api/schedules');
-  const hasRecurring = _schedData === undefined
-    ? null
-    : (Array.isArray(_schedData) ? _schedData : _schedData?.schedules ?? []).length > 0;
   const [hiding, setHiding] = useState(false);
 
   if (dismissed) return null;
-  if (hasRecurring === null) return null; // still loading
 
   const completed = [
     channelCount > 0,
     postCount > 0,
     scheduledCount > 0,
-    hasRecurring,
   ];
   const completedCount = completed.filter(Boolean).length;
 
@@ -204,7 +192,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '28px',
     height: '28px',
     borderRadius: 'var(--radius-md)',
-    background: '#FFF7ED',
+    background: '#F4F4F5',
     color: 'var(--accent-500)',
     flexShrink: 0,
   },

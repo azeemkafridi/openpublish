@@ -1,0 +1,173 @@
+---
+// API Documentation — powered by Scalar
+// Public page (no auth required)
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>API Documentation — openPublish</title>
+  <meta name="description" content="openPublish API reference. Publish to 16 social media platforms from a single API." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  {/*
+    This page builds its own <head> rather than using ToolLayout, so it does
+    not inherit the preview tags — it had none, and no canonical either, while
+    being one of the few pages robots.txt exposes and the one agents are most
+    likely to share. Keep in sync with ToolLayout.astro.
+  */}
+  <link rel="canonical" href="/docs" />
+  <meta property="og:title" content="API Documentation — openPublish" />
+  <meta property="og:description" content="openPublish API reference. Publish to 16 social media platforms from a single API." />
+  <meta property="og:url" content="/docs" />
+  <meta property="og:site_name" content="openPublish" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/assets/og-default.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="API Documentation — openPublish" />
+  <meta name="twitter:description" content="openPublish API reference. Publish to 16 social media platforms from a single API." />
+  <meta name="twitter:image" content="/assets/og-default.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* openPublish design overrides for Scalar */
+    :root {
+      --scalar-font: 'Inter', system-ui, -apple-system, sans-serif;
+      --scalar-font-code: 'DM Mono', 'SF Mono', monospace;
+      --scalar-color-1: #18181B;
+      --scalar-color-2: #3F3F46;
+      --scalar-color-3: #71717A;
+      --scalar-color-accent: #18181B;
+      --scalar-background-1: #FFFFFF;
+      --scalar-background-2: #FAFAFA;
+      --scalar-background-3: #F4F4F5;
+      --scalar-background-accent: #F4F4F5;
+      --scalar-border-color: #E4E4E7;
+      --scalar-sidebar-color-1: #18181B;
+      --scalar-sidebar-color-2: #52525B;
+      --scalar-sidebar-color-active: #18181B;
+      --scalar-sidebar-background-1: #FAFAFA;
+      --scalar-sidebar-border-color: #E4E4E7;
+      --scalar-button-1: #18181B;
+      --scalar-button-1-hover: #3F3F46;
+      --scalar-button-1-color: #FFFFFF;
+      --scalar-radius: 8px;
+      --scalar-radius-lg: 12px;
+      --theme-font: 'Inter', system-ui, -apple-system, sans-serif;
+      --theme-font-code: 'DM Mono', 'SF Mono', monospace;
+      --theme-color-1: #18181B;
+      --theme-color-2: #3F3F46;
+      --theme-color-3: #71717A;
+      --theme-color-accent: #18181B;
+      --theme-background-1: #FFFFFF;
+      --theme-background-2: #FAFAFA;
+      --theme-background-3: #F4F4F5;
+      --theme-background-accent: #F4F4F5;
+      --theme-border-color: #E4E4E7;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      margin: 0;
+    }
+
+    /* Force our fonts */
+    .scalar-api-reference,
+    .scalar-api-reference * {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+    .scalar-api-reference pre,
+    .scalar-api-reference code,
+    .scalar-api-reference .cm-editor,
+    .scalar-api-reference [class*="code"],
+    .scalar-api-reference [class*="Code"] {
+      font-family: 'DM Mono', 'SF Mono', monospace !important;
+    }
+
+    /* Hide Scalar branding links in sidebar */
+    a[href*="scalar.com"],
+    a[href*="marketplace.visualstudio"],
+    a[href*="cursor.com"] {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <script
+    id="api-reference"
+    data-url="/openapi.json"
+    data-configuration={JSON.stringify({
+      theme: 'none',
+      layout: 'modern',
+      darkMode: false,
+      forceDarkModeState: 'light',
+      showSidebar: true,
+      showDeveloperTools: 'never',
+      hideDarkModeToggle: true,
+      hideClientButton: true,
+      hideSearch: false,
+      hideModels: true,
+      documentDownloadType: 'none',
+      withDefaultFonts: false,
+      defaultOpenFirstTag: true,
+      orderRequiredPropertiesFirst: true,
+      persistAuth: true,
+      telemetry: false,
+      agent: { disabled: true },
+      mcp: { disabled: true },
+      hiddenClients: [],
+      searchHotKey: 'k',
+      defaultHttpClient: { targetKey: 'javascript', clientKey: 'fetch' },
+      authentication: {
+        preferredSecurityScheme: 'apiKey',
+        apiKey: { token: '' },
+      },
+      customCss: '.section-header-wrapper { gap: 8px !important; } .introduction-description.mt-6 { margin-top: 4px !important; }',
+    })}
+  ></script>
+  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  <script>
+    // Remove Scalar branding links after render
+    function cleanupScalar() {
+      document.querySelectorAll('span, div, a').forEach(el => {
+        const text = el.textContent?.trim();
+        if (text === 'Powered by Scalar' || text === 'VS Code' || text === 'Cursor' || text === 'Generate MCP') {
+          el.closest('li, div, a')?.remove?.() || el.remove();
+        }
+      });
+    }
+
+    // Inject openPublish logo at the top of the Scalar sidebar
+    function injectLogo() {
+      if (document.getElementById('bp-sidebar-logo')) return;
+      const sidebar = document.querySelector('.t-doc__sidebar');
+      if (!sidebar) return;
+      const logo = document.createElement('a');
+      logo.id = 'bp-sidebar-logo';
+      logo.href = '/overview';
+      logo.style.cssText = 'display:flex;align-items:center;gap:10px;padding:16px 20px;text-decoration:none;flex-shrink:0;border-bottom:1px solid #E4E4E7;';
+      logo.innerHTML = '<img src="/assets/logo.svg" alt="openPublish" width="32" height="20" />'
+        + '<span style="display:flex;align-items:baseline;gap:5px;">'
+        + '<span style="font-family:DM Sans,system-ui,sans-serif;font-size:15px;font-weight:600;color:#18181B;letter-spacing:-0.01em;">openPublish</span>'
+        + '<span style="font-family:DM Sans,system-ui,sans-serif;font-size:11px;font-weight:400;color:#A8A29E;">Docs</span>'
+        + '</span>';
+      sidebar.insertBefore(logo, sidebar.firstChild);
+    }
+
+    const observer = new MutationObserver(() => {
+      injectLogo();
+      cleanupScalar();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    setTimeout(() => {
+      injectLogo();
+      cleanupScalar();
+      observer.disconnect();
+    }, 5000);
+  </script>
+</body>
+</html>

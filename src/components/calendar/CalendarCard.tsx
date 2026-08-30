@@ -23,7 +23,7 @@ export interface CalendarCardProps {
 
 const STATUS_CARD: Record<string, { bg: string; text: string; hover: string }> = {
   published:  { bg: '#ECFDF5', text: '#065F46', hover: '#D1FAE5' },
-  scheduled:  { bg: '#FFF4E6', text: '#B85A00', hover: '#FFE8C7' },
+  scheduled:  { bg: '#EFEFF1', text: '#3F3F46', hover: '#E4E4E7' },
   failed:     { bg: '#FEF2F2', text: '#991B1B', hover: '#FEE2E2' },
   draft:      { bg: '#F5F5F4', text: '#78716C', hover: '#E7E5E4' },
   publishing: { bg: '#EFF6FF', text: '#1E40AF', hover: '#DBEAFE' },
@@ -55,7 +55,7 @@ const PLATFORM_COLORS: Record<string, { bg: string; text: string; hover: string 
 };
 
 const FALLBACK_PALETTE = [
-  { bg: '#FFF4E6', text: '#B85A00', hover: '#FFE8C7' },
+  { bg: '#EFEFF1', text: '#3F3F46', hover: '#E4E4E7' },
   { bg: '#EDE9FE', text: '#5B21B6', hover: '#DDD6FE' },
   { bg: '#E0F2FE', text: '#0369A1', hover: '#BAE6FD' },
   { bg: '#FCE7F3', text: '#9D174D', hover: '#FBCFE8' },

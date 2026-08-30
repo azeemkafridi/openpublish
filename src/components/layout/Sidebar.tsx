@@ -186,11 +186,6 @@ const mainNav: NavItem[] = [
   { label: 'Analytics', href: '/analytics', icon: icons.analytics },
 ];
 
-const automationsNav: NavItem[] = [
-  { label: 'Repeat Posts', href: '/repeat-posts', icon: icons.repeat },
-  { label: 'Publish from RSS', href: '/rss-feeds', icon: icons.rss },
-];
-
 const developerNav: NavItem[] = [
   { label: 'Docs', href: '/docs', icon: icons.document },
   { label: 'API', href: '/developer', icon: icons.api },
@@ -223,9 +218,6 @@ export default function Sidebar({ currentPath, userName, userEmail, userRole, or
   // rendered these groups collapsed in the server HTML and expanded on the
   // client's first render, a hydration mismatch (React #418, one Sentry event
   // per visit to /repeat-posts, /rss-feeds, /docs, /developer, /admin).
-  const [autoOpen, setAutoOpen] = useState(() =>
-    ['/repeat-posts', '/rss-feeds'].some((p) => currentPath.startsWith(p)),
-  );
   const [devOpen, setDevOpen] = useState(() =>
     ['/docs', '/developer'].some((p) => currentPath.startsWith(p)),
   );
@@ -288,7 +280,7 @@ export default function Sidebar({ currentPath, userName, userEmail, userRole, or
             paddingLeft: isCollapsed ? 0 : '12px',
           }}
         >
-          <img src="/assets/logo.svg" alt="openPublish" width="28" height="28" style={{ flexShrink: 0 }} />
+          <img src="/assets/logo.svg" alt="openPublish" width="32" height="20" style={{ flexShrink: 0 }} />
         </a>
       </div>
 
@@ -340,74 +332,6 @@ export default function Sidebar({ currentPath, userName, userEmail, userRole, or
             </span>
           </a>
 
-          {/* Bulk Compose. Collapsed it is a plain link, not a split-button:
-              a popover hanging off a 42px icon in a 56px column has nowhere to
-              open into, and the menu only ever held this one destination — the
-              chevron was two clicks for what an icon does in one. */}
-          {isCollapsed ? (
-            <a
-              href="/compose/bulk"
-              className="sidebar-nav-item"
-              title="Bulk Compose"
-              aria-label="Bulk Compose"
-              // No background or border: collapsed, this is just another icon in
-              // the column, and the split-button chrome it inherited from the
-              // expanded row made it the only outlined thing in the sidebar.
-              style={{ ...styles.navItem, ...styles.navItemCollapsed }}
-            >
-              <span style={styles.navIcon}>{icons.bulk}</span>
-            </a>
-          ) : (
-          <Dropdown
-            align="right"
-            containerStyle={{ position: 'static' }}
-            menuStyle={{ left: 0, right: 0, minWidth: 0, padding: 0, overflow: 'hidden', border: '1px solid var(--stone-300)' }}
-            itemStyle={{ height: '38px', padding: '0 12px' }}
-            items={[
-              {
-                label: 'Bulk Compose',
-                icon: icons.bulk,
-                onClick: () => {
-                  window.location.href = '/compose/bulk';
-                },
-              },
-            ]}
-            trigger={
-              <button
-                type="button"
-                aria-label="Bulk publishing options"
-                title="Bulk Compose"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxSizing: 'border-box',
-                  width: '40px',
-                  height: '40px',
-                  background: 'var(--surface-main)',
-                  border: '1px solid var(--stone-300)',
-                  borderRadius: '10px',
-                  color: 'var(--stone-500)',
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                  transition: 'all 180ms ease',
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.background = 'var(--stone-100)';
-                  e.currentTarget.style.color = 'var(--stone-700)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.background = 'var(--surface-main)';
-                  e.currentTarget.style.color = 'var(--stone-500)';
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="4 6 8 10 12 6" />
-                </svg>
-              </button>
-            }
-          />
-          )}
         </div>
 
         <ul style={{ ...styles.navList, alignItems: isCollapsed ? 'center' : 'stretch' }} className="stagger-children">
@@ -450,88 +374,6 @@ export default function Sidebar({ currentPath, userName, userEmail, userRole, or
           })}
         </ul>
 
-        {/* Automations submenu */}
-        {!isCollapsed ? (
-          // padding is uniform on purpose: with vertical-only padding the hovered
-          // child's 10px corners sat flush against the container's left/right edges,
-          // so the same rounded rect looked inset at the top and clipped at the
-          // sides. 4px all round + a 14px shell keeps the radii concentric.
-          <div style={{ marginTop: '2px', background: 'var(--surface-main)', borderRadius: '14px', padding: '4px' }}>
-            <button
-              type="button"
-              className="sidebar-nav-item"
-              onClick={() => setAutoOpen((v) => !v)}
-              style={{
-                ...styles.navItem,
-                width: '100%',
-                background: 'transparent',
-                color: '#57534E',
-                justifyContent: 'flex-start',
-                textAlign: 'left',
-              }}
-            >
-              <span style={styles.navIcon}>
-                {icons.automations}
-              </span>
-              <span style={styles.navLabel}>Automations</span>
-              <svg
-                width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-                style={{ marginLeft: 'auto', transition: 'transform 150ms ease', transform: autoOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-              >
-                <polyline points="4 6 8 10 12 6" />
-              </svg>
-            </button>
-            {autoOpen && (
-              <ul style={{ ...styles.navList, marginTop: '2px' }}>
-                {automationsNav.map((item) => {
-                  const active = isActive(item.href);
-                  return (
-                    <li key={item.href}>
-                      <a
-                        href={item.href}
-                        className="sidebar-nav-item"
-                        style={{
-                          ...styles.navItem,
-                          fontSize: '13px',
-                          padding: '8px 10px',
-                          ...(active ? styles.navItemActive : {}),
-                        }}
-                        title={item.label}
-                      >
-                        <span style={{ ...styles.navIcon, ...(active ? styles.navIconActive : {}) }}>
-                          {item.icon}
-                        </span>
-                        <span style={styles.navLabel}>{item.label}</span>
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        ) : (
-          automationsNav.map((item) => {
-            const active = isActive(item.href);
-            return (
-              <a
-                key={item.href}
-                href={item.href}
-                className="sidebar-nav-item"
-                style={{
-                  ...styles.navItem,
-                  ...(active ? styles.navItemActive : {}),
-                  ...styles.navItemCollapsed,
-                  margin: '0 auto',
-                }}
-                title={item.label}
-              >
-                <span style={{ ...styles.navIcon, ...(active ? styles.navIconActive : {}) }}>
-                  {item.icon}
-                </span>
-              </a>
-            );
-          })
-        )}
 
         {/* Developer submenu */}
         {!isCollapsed ? (
@@ -786,10 +628,10 @@ export default function Sidebar({ currentPath, userName, userEmail, userRole, or
       <div style={{ ...styles.accountSection, alignItems: isCollapsed ? 'center' : 'stretch' }}>
         {isCollapsed ? (
           <div style={styles.collapsedAccountWrapper}>
-            <UserMenu name={userName} email={userEmail} role={userRole} plan={organizationPlan} supportEnabled={supportEnabled} collapsed />
+            <UserMenu name={userName} email={userEmail} role={userRole} supportEnabled={supportEnabled} collapsed />
           </div>
         ) : (
-          <UserMenu name={userName} email={userEmail} role={userRole} plan={organizationPlan} supportEnabled={supportEnabled} />
+          <UserMenu name={userName} email={userEmail} role={userRole} supportEnabled={supportEnabled} />
         )}
       </div>
     </div>

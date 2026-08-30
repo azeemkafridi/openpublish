@@ -305,8 +305,8 @@ const s: Record<string, CSSProperties> = {
   codeBlock: {
     fontFamily: 'var(--font-mono, monospace)',
     fontSize: '12px',
-    background: '#FFF7ED',
-    color: '#EA580C',
+    background: '#F4F4F5',
+    color: '#3F3F46',
     padding: '10px 14px',
     borderRadius: '8px',
     marginTop: '8px',

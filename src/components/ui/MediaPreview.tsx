@@ -33,8 +33,8 @@ function typeBadge(type: string): React.CSSProperties {
     letterSpacing: '0.05em',
     padding: '2px 8px',
     borderRadius: 'var(--radius-sm)',
-    background: type === 'video' ? '#EEF2FF' : 'var(--accent-50, #FFF7ED)',
-    color: type === 'video' ? '#6366F1' : 'var(--accent-600, #EA580C)',
+    background: type === 'video' ? '#EEF2FF' : 'var(--accent-50, #F7F7F8)',
+    color: type === 'video' ? '#6366F1' : 'var(--accent-600, #09090B)',
   };
 }
 

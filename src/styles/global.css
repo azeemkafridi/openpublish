@@ -99,17 +99,18 @@ input, textarea, select {
   --stone-800: #27272A;
   --stone-900: #18181B;
 
-  /* Accent — deep teal: calm, tool-like, unmistakably not the cloud product */
-  --accent-50: #F0FDFA;
-  --accent-100: #CCFBF1;
-  --accent-200: #99F6E4;
-  --accent-300: #5EEAD4;
-  --accent-400: #2DD4BF;
-  --accent-500: #0D9488;
-  --accent-600: #0F766E;
-  --accent-700: #115E59;
-  --accent-800: #134E4A;
-  --accent-900: #0F3D3A;
+  /* Accent — monotone ink: openPublish is black/white/gray throughout,
+     so the "accent" is simply the darkest end of the neutral ramp. */
+  --accent-50: #F7F7F8;
+  --accent-100: #EFEFF1;
+  --accent-200: #E0E0E3;
+  --accent-300: #C9C9CE;
+  --accent-400: #52525B;
+  --accent-500: #18181B;
+  --accent-600: #09090B;
+  --accent-700: #060607;
+  --accent-800: #040405;
+  --accent-900: #000000;
 
   /* Semantic colors — softer, muted tones */
   --color-success: #4ADE80;

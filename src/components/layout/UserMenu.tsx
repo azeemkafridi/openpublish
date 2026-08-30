@@ -13,14 +13,13 @@ interface Props {
   name: string;
   email?: string;
   role: string;
-  plan?: string;
   avatarUrl?: string;
   collapsed?: boolean;
   /** Show the Help Center + "Chat with us" items (only when Chatwoot is configured). */
   supportEnabled?: boolean;
 }
 
-export default function UserMenu({ name, email, role, plan, avatarUrl, collapsed = false, supportEnabled = false }: Props) {
+export default function UserMenu({ name, email, role, avatarUrl, collapsed = false, supportEnabled = false }: Props) {
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -103,15 +102,7 @@ export default function UserMenu({ name, email, role, plan, avatarUrl, collapsed
       <div style={styles.dropdownHeader}>
         <span style={styles.dropdownName}>{name}</span>
         {email && <span style={styles.dropdownEmail}>{email}</span>}
-        <span style={styles.dropdownRole}>
-          {role}
-          {plan && (
-            <>
-              {' · '}
-              <span style={planStyles[plan] || planStyles.free}>{plan.charAt(0).toUpperCase() + plan.slice(1)}</span>
-            </>
-          )}
-        </span>
+        <span style={styles.dropdownRole}>{role}</span>
       </div>
       <div style={styles.dropdownDivider} />
       <a href="/settings" style={styles.dropdownItem} onClick={() => setOpen(false)}>
@@ -120,13 +111,6 @@ export default function UserMenu({ name, email, role, plan, avatarUrl, collapsed
           <path d="M11.4 8.6a.93.93 0 00.16 1.01l.03.03a1.12 1.12 0 11-1.58 1.58l-.03-.03a.93.93 0 00-1.01-.16.93.93 0 00-.56.85v.1a1.12 1.12 0 01-2.24 0v-.05a.93.93 0 00-.61-.85.93.93 0 00-1.01.16l-.03.03a1.12 1.12 0 11-1.58-1.58l.03-.03a.93.93 0 00.16-1.01.93.93 0 00-.85-.56h-.1a1.12 1.12 0 010-2.24h.05a.93.93 0 00.85-.61.93.93 0 00-.16-1.01l-.03-.03A1.12 1.12 0 114.2 2.6l.03.03a.93.93 0 001.01.16h.05a.93.93 0 00.56-.85v-.1a1.12 1.12 0 012.24 0v.05a.93.93 0 00.61.85.93.93 0 001.01-.16l.03-.03a1.12 1.12 0 111.58 1.58l-.03.03a.93.93 0 00-.16 1.01v.05a.93.93 0 00.85.56h.1a1.12 1.12 0 010 2.24h-.05a.93.93 0 00-.85.61z" />
         </svg>
         Settings
-      </a>
-      <a href="/pricing" style={styles.dropdownItem} onClick={() => setOpen(false)}>
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="1.75" y="3.5" width="10.5" height="7" rx="1.2" />
-          <line x1="1.75" y1="6.25" x2="12.25" y2="6.25" />
-        </svg>
-        Pricing
       </a>
       {supportEnabled && (
         <>
@@ -394,8 +378,3 @@ const styles: Record<string, React.CSSProperties> = {
   },
 };
 
-const planStyles: Record<string, React.CSSProperties> = {
-  free: { color: '#78716C' },
-  pro: { color: '#C2410C', fontWeight: 500 },
-  business: { color: '#6D28D9', fontWeight: 500 },
-};

@@ -345,7 +345,7 @@ export function ThreadEditor({
           }}
           onMouseOver={(e) => {
             e.currentTarget.style.borderColor = 'var(--accent-400)';
-            e.currentTarget.style.background = 'var(--accent-50, #FFF7ED)';
+            e.currentTarget.style.background = 'var(--accent-50, #F7F7F8)';
           }}
           onMouseOut={(e) => {
             e.currentTarget.style.borderColor = 'var(--stone-200)';
