@@ -99,15 +99,6 @@ const CHIPS: FilterChip[] = [
     activeBorder: 'var(--color-warning-border)',
     dotColor: 'var(--color-warning)',
   },
-  {
-    label: 'Repeat Posts',
-    value: 'recurring',
-    color: '#7C3AED',
-    bg: 'transparent',
-    activeBg: '#EDE9FE',
-    activeBorder: '#C4B5FD',
-    dotColor: '#7C3AED',
-  },
 ];
 
 export function StatusFilter({ value, onChange, counts }: StatusFilterProps) {

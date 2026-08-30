@@ -35,16 +35,6 @@ interface PostPlatformEntry {
   errorMessage?: string | null;
 }
 
-interface RecurringScheduleInfo {
-  frequency: string;
-  dayOfWeek: number | null;
-  dayOfMonth: number | null;
-  timeOfDay: string;
-  timezone: string | null;
-  nextRunAt: string | null;
-  isActive: boolean | null;
-}
-
 interface Post {
   id: string;
   content: string;
@@ -56,8 +46,6 @@ interface Post {
   postPlatforms?: PostPlatformEntry[];
   mediaFiles?: { id: number; mimeType: string; thumbnailUrl?: string; previewUrl?: string; largeUrl?: string; originalUrl?: string; isOriginalDeleted?: boolean; width?: number; height?: number; sizeBytes?: number }[];
   createdAt?: string;
-  recurringScheduleId?: number | null;
-  recurringSchedule?: RecurringScheduleInfo | null;
 }
 
 interface Channel {
@@ -143,27 +131,6 @@ const PLATFORM_STATUS_COLORS: Record<string, string> = {
 };
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-function formatRepeatSummary(schedule: RecurringScheduleInfo): string {
-  const time = schedule.timeOfDay || '09:00';
-  const [h, m] = time.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 || 12;
-  const timeStr = `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
-
-  if (schedule.frequency === 'daily') return `Every day at ${timeStr}`;
-  if (schedule.frequency === 'weekly' || schedule.frequency === 'biweekly') {
-    const dayName = schedule.dayOfWeek != null ? DAY_NAMES[schedule.dayOfWeek] : 'Mon';
-    const prefix = schedule.frequency === 'biweekly' ? 'Every other' : 'Every';
-    return `${prefix} ${dayName} at ${timeStr}`;
-  }
-  if (schedule.frequency === 'monthly') {
-    const d = schedule.dayOfMonth ?? 1;
-    const suffix = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th';
-    return `${d}${suffix} of every month at ${timeStr}`;
-  }
-  return `Repeats ${schedule.frequency}`;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Skeleton                                                           */
@@ -427,8 +394,6 @@ function activityHref(resource: string | null): string | null {
     case 'channel': return '/channels';
     case 'label': return '/labels';
     case 'media': return '/media';
-    case 'schedule':
-    case 'repeat': return '/repeat-posts';
     case 'api_key':
     case 'settings': return '/settings';
     default: return null;
@@ -521,9 +486,6 @@ function FeedCard({
                         <span style={styles.timeBadge}>{timeAgo(post.createdAt)}</span>
                       ) : null}
                       <PlatformDots platforms={post.postPlatforms} />
-                      {post.recurringScheduleId && post.recurringSchedule && (
-                        <span style={styles.repeatBadge}>{formatRepeatSummary(post.recurringSchedule)}</span>
-                      )}
                     </div>
                   </div>
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--stone-300)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -1232,41 +1194,6 @@ const styles: Record<string, React.CSSProperties> = {
   errorPreview: {
     fontSize: 'var(--text-xs)',
     color: 'var(--color-error)',
-  },
-  repeatBadge: {
-    fontSize: '10px',
-    fontWeight: 600,
-    color: '#7C3AED',
-    background: '#F3E8FF',
-    padding: '2px 7px',
-    borderRadius: '99px',
-    whiteSpace: 'nowrap',
-    height: '20px',
-    display: 'inline-flex',
-    alignItems: 'center',
-  } as React.CSSProperties,
-  errorPanel: {
-    padding: '8px 10px',
-    borderRadius: '8px',
-    background: 'var(--stone-100)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-    marginTop: '8px',
-  } as React.CSSProperties,
-  errorRow: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '8px',
-  } as React.CSSProperties,
-  emptySection: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '260px',
-    padding: '40px 16px',
-    gap: '8px',
   },
   unreadDot: {
     width: '6px',

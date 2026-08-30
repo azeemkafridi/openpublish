@@ -27,14 +27,10 @@ export const QUEUE_NAMES = {
   TOKEN_REFRESH: 'token-refresh',
   MEDIA_CLEANUP: 'media-cleanup',
   NOTIFICATION: 'notification',
-  RECURRING: 'recurring',
   WEBHOOK: 'webhook-deliver',
   RETENTION: 'retention',
   METRICS_SYNC: 'metrics-sync',
   ENGAGEMENT_CHECK: 'engagement-check',
-  RSS: 'rss',
-  LINKS_SYNC: 'links-sync',
-  CHANNEL_SLOTS: 'channel-slots',
 } as const;
 
 const queues = new Map<string, Queue>();
@@ -190,27 +186,6 @@ export async function addMetricsSyncJob(organizationId?: number) {
     },
   );
   logger.info({ organizationId, jobName }, 'Added metrics sync job');
-}
-
-/**
- * Pull shortlink clicks from Analytics Engine into Postgres.
- *
- * The watermark inside the worker makes this idempotent, so an on-demand call
- * alongside the 15-minute cron just narrows the next window rather than
- * double-counting. Deduped per minute so a burst of analytics refreshes from
- * one org can't queue a run each.
- */
-export async function addLinksSyncJob() {
-  const queue = getQueue(QUEUE_NAMES.LINKS_SYNC);
-  await queue.add(
-    'sync-link-clicks',
-    {},
-    {
-      jobId: `sync-link-clicks-${Math.floor(Date.now() / 60_000)}`,
-      removeOnComplete: 20,
-      removeOnFail: 50,
-    },
-  );
 }
 
 // Auto-plug/auto-repost engagement checks: a bounded set of delayed per-post jobs

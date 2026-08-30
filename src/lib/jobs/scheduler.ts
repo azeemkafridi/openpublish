@@ -48,20 +48,6 @@ export async function setupRecurringJobs() {
   );
   logger.info('Token refresh job registered (every 40 minutes)');
 
-  // Recurring schedule processor - runs every minute
-  const recurringQueue = getQueue(QUEUE_NAMES.RECURRING);
-  await clearExistingRepeatables(recurringQueue, 'process-recurring');
-  await recurringQueue.add(
-    'process-recurring',
-    {},
-    {
-      repeat: { pattern: '* * * * *' }, // every minute
-      removeOnComplete: 10,
-      removeOnFail: 20,
-    },
-  );
-  logger.info('Recurring schedule processor registered (every minute)');
-
   // Media cleanup check - runs every 5 minutes
   const cleanupQueue = getQueue(QUEUE_NAMES.MEDIA_CLEANUP);
   await clearExistingRepeatables(cleanupQueue, 'check-cleanup');
@@ -115,53 +101,6 @@ export async function setupRecurringJobs() {
     },
   );
   logger.info('X API usage snapshot job registered (daily at 3 AM UTC)');
-
-  // Shortlink clicks — pull from Analytics Engine every 15 minutes. The worker
-  // keeps a Redis watermark, so the cadence only affects freshness, never
-  // correctness: a missed run is picked up by the next one.
-  const linksSyncQueue = getQueue(QUEUE_NAMES.LINKS_SYNC);
-  await clearExistingRepeatables(linksSyncQueue, 'sync-link-clicks');
-  await linksSyncQueue.add(
-    'sync-link-clicks',
-    {},
-    {
-      repeat: { pattern: '*/15 * * * *' },
-      removeOnComplete: 5,
-      removeOnFail: 20,
-    },
-  );
-  logger.info('Shortlink click sync registered (every 15 minutes)');
-
-  // RSS autopost — poll enabled feeds every 15 minutes.
-  const rssQueue = getQueue(QUEUE_NAMES.RSS);
-  await clearExistingRepeatables(rssQueue, 'poll-feeds');
-  await rssQueue.add(
-    'poll-feeds',
-    {},
-    {
-      repeat: { pattern: '*/15 * * * *' },
-      removeOnComplete: 5,
-      removeOnFail: 20,
-    },
-  );
-  logger.info('RSS feed poller registered (every 15 minutes)');
-
-  // Extra channel slots — hourly lifecycle pass: expiry-warning emails (7d/1d)
-  // and over-limit enforcement for expired/refunded slots. Idempotent via the
-  // warned/enforced stamps on channel_slots, so cadence only affects how fast a
-  // lapse is acted on, never correctness.
-  const channelSlotsQueue = getQueue(QUEUE_NAMES.CHANNEL_SLOTS);
-  await clearExistingRepeatables(channelSlotsQueue, 'process-channel-slots');
-  await channelSlotsQueue.add(
-    'process-channel-slots',
-    {},
-    {
-      repeat: { pattern: '25 * * * *' }, // hourly, offset from other jobs
-      removeOnComplete: 5,
-      removeOnFail: 20,
-    },
-  );
-  logger.info('Channel slot lifecycle job registered (hourly)');
 
   // Data retention - runs daily at 3 AM
   const retentionQueue = getQueue(QUEUE_NAMES.RETENTION);

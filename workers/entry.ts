@@ -4,11 +4,9 @@ import { createStatusCheckWorker } from '../src/lib/jobs/status-check.worker';
 import { createTokenRefreshWorker } from '../src/lib/jobs/token-refresh.worker';
 import { createMediaCleanupWorker } from '../src/lib/jobs/media-cleanup.worker';
 import { createNotificationWorker } from '../src/lib/jobs/notification.worker';
-import { createRecurringWorker } from '../src/lib/jobs/recurring.worker';
 import { createRetentionWorker } from '../src/lib/jobs/retention.worker';
 import { createMetricsSyncWorker } from '../src/lib/jobs/metrics-sync.worker';
 import { createEngagementCheckWorker } from '../src/lib/jobs/engagement-check.worker';
-import { createRssWorker } from '../src/lib/jobs/rss.worker';
 import { setupRecurringJobs } from '../src/lib/jobs/scheduler';
 import { closeRedisConnection } from '../src/lib/jobs/queue';
 import { createLogger } from '../src/lib/logger';
@@ -51,9 +49,6 @@ async function main() {
   const notificationWorker = createNotificationWorker();
   logger.info('Notification worker started');
 
-  const recurringWorker = createRecurringWorker();
-  logger.info('Recurring schedule worker started');
-
   const retentionWorker = createRetentionWorker();
   logger.info('Retention worker started');
 
@@ -63,17 +58,14 @@ async function main() {
   const engagementCheckWorker = createEngagementCheckWorker();
   logger.info('Engagement check worker started');
 
-  const rssWorker = createRssWorker();
-  logger.info('RSS autopost worker started');
-
   // BullMQ re-emits Redis/ioredis errors on each Worker. Without an 'error' listener the
   // event is thrown, trips the uncaughtException handler above, and exits the process —
   // turning a transient Redis blip into a crash-loop that abandons in-flight jobs. Log and
   // keep running instead; BullMQ reconnects on its own.
   const workers = [
     publishWorker, statusCheckWorker, tokenRefreshWorker, mediaCleanupWorker,
-    notificationWorker, recurringWorker, retentionWorker, metricsSyncWorker,
-    engagementCheckWorker, rssWorker,
+    notificationWorker, retentionWorker, metricsSyncWorker,
+    engagementCheckWorker,
   ];
   for (const w of workers) {
     w.on('error', (err) => logger.error({ err }, 'BullMQ worker error (non-fatal)'));

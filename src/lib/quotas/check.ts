@@ -110,16 +110,8 @@ export async function checkWebhookQuota(_organizationId: number): Promise<QuotaC
   return ALLOW('webhooks');
 }
 
-export async function checkRecurringScheduleQuota(_organizationId: number): Promise<QuotaCheckResult> {
-  return ALLOW('recurring_schedules');
-}
-
 export async function checkMediaStorageQuota(_organizationId: number): Promise<QuotaCheckResult> {
   return ALLOW('media_storage');
-}
-
-export async function checkRssFeedQuota(_organizationId: number): Promise<QuotaCheckResult> {
-  return ALLOW('rss_feeds');
 }
 
 export async function checkLabelQuota(_organizationId: number): Promise<QuotaCheckResult> {

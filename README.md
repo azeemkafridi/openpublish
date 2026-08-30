@@ -8,7 +8,7 @@ on your own server.
   Facebook, Instagram, Threads, TikTok, YouTube, Pinterest, Google Business,
   Reddit, Discord, Telegram, Tumblr, Snapchat
 - **Composer** with per-platform overrides, threads, media, post types
-- **Scheduling**: calendar, queue slots, repeat posts, RSS autopost, CSV bulk import
+- **Scheduling**: calendar view, queue slots, per-post timezones
 - **Analytics**: post + account metrics synced from each platform
 - **Media library**: local-disk storage by default, any S3-compatible store optionally
 - **REST API** with API-key auth for scripts and agents

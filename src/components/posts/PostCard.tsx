@@ -47,16 +47,6 @@ export type PostStatusValue =
   | 'failed'
   | 'processing';
 
-export interface RecurringScheduleInfo {
-  frequency: string;
-  dayOfWeek: number | null;
-  dayOfMonth: number | null;
-  timeOfDay: string;
-  timezone: string | null;
-  nextRunAt: string | null;
-  isActive: boolean | null;
-}
-
 export interface Post {
   id: number;
   content: string;
@@ -66,8 +56,6 @@ export interface Post {
   mediaFiles: MediaFileRef[];
   postPlatforms: PostPlatformEntry[];
   labels: PostLabel[];
-  recurringScheduleId?: number | null;
-  recurringSchedule?: RecurringScheduleInfo | null;
   approvalStatus?: 'none' | 'pending' | 'approved' | 'rejected' | null;
   rejectionReason?: string | null;
   timezone?: string;
@@ -87,7 +75,7 @@ export interface Post {
   autoPlugFired?: boolean | null;
 }
 
-export type PostAction = 'details' | 'edit' | 'publish' | 'retry' | 'delete' | 'automate' | 'edit-automation' | 'remove-automation' | 'repost' | 'fb-story' | 'ig-story' | 'approve' | 'reject';
+export type PostAction = 'details' | 'edit' | 'publish' | 'retry' | 'delete' | 'repost' | 'fb-story' | 'ig-story' | 'approve' | 'reject';
 
 export interface PostCardProps {
   post: Post;
@@ -153,29 +141,6 @@ function truncate(text: string, max: number): string {
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function formatRepeatSummary(schedule: RecurringScheduleInfo): string {
-  const time = schedule.timeOfDay || '09:00';
-  const [h, m] = time.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 || 12;
-  const timeStr = `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
-
-  if (schedule.frequency === 'daily') {
-    return `Every day at ${timeStr}`;
-  }
-  if (schedule.frequency === 'weekly' || schedule.frequency === 'biweekly') {
-    const dayName = schedule.dayOfWeek != null ? DAY_NAMES[schedule.dayOfWeek] : 'Mon';
-    const prefix = schedule.frequency === 'biweekly' ? 'Every other' : 'Every';
-    return `${prefix} ${dayName} at ${timeStr}`;
-  }
-  if (schedule.frequency === 'monthly') {
-    const d = schedule.dayOfMonth ?? 1;
-    const suffix = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th';
-    return `${d}${suffix} of every month at ${timeStr}`;
-  }
-  return `Repeats ${schedule.frequency}`;
-}
-
 // ---- Component ----
 
 export function PostCard({ post, selected, onSelect, onAction, viewerCanPublish = true, viewerCanApprove = true }: PostCardProps) {
@@ -236,13 +201,11 @@ export function PostCard({ post, selected, onSelect, onAction, viewerCanPublish 
       post.status === 'partial' ||
       post.postPlatforms.some((p) => p.status === 'failed'));
   const canDelete = post.status === 'draft' || post.status === 'scheduled' || post.status === 'failed';
-  const isAutomated = !!post.recurringScheduleId;
-  const canAutomate = !isAutomated;
   const canRepost = viewerCanPublish && (post.status === 'published' || post.status === 'partial');
   const canFbStory = canRepost && hasMedia && post.postPlatforms.some((pp) => pp.platform === 'facebook');
   const canIgStory = canRepost && hasMedia && post.postPlatforms.some((pp) => pp.platform === 'instagram');
   const canApproveThis = viewerCanApprove && isPendingApproval;
-  const hasActions = canEdit || canPublish || canRetry || canDelete || canAutomate || isAutomated || canRepost || canFbStory || canIgStory || canApproveThis;
+  const hasActions = canEdit || canPublish || canRetry || canDelete || canRepost || canFbStory || canIgStory || canApproveThis;
 
   const cardStyle: CSSProperties = {
     display: 'flex',
@@ -587,33 +550,6 @@ export function PostCard({ post, selected, onSelect, onAction, viewerCanPublish 
               </span>
             )}
 
-            {post.recurringScheduleId && (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '2px 8px',
-                  borderRadius: 'var(--radius-pill)',
-                  fontSize: 'var(--text-xs)',
-                  fontWeight: 500,
-                  background: '#EDE9FE',
-                  color: '#7C3AED',
-                  lineHeight: 1.3,
-                }}
-              >
-                <svg width="10" height="10" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 9a6 6 0 0111.5-2.4" />
-                  <polyline points="15 3 15 7 11 7" />
-                  <path d="M15 9a6 6 0 01-11.5 2.4" />
-                  <polyline points="3 15 3 11 7 11" />
-                </svg>
-                {post.recurringSchedule
-                  ? formatRepeatSummary(post.recurringSchedule)
-                  : 'Repeat'}
-              </span>
-            )}
-
             {hasMedia && (
               <span
                 style={{
@@ -767,34 +703,6 @@ export function PostCard({ post, selected, onSelect, onAction, viewerCanPublish 
                   onClick={() => {
                     setMenuOpen(false);
                     onAction(post.id, 'ig-story');
-                  }}
-                />
-              )}
-              {canAutomate && (
-                <MenuAction
-                  label="Set post on repeat"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onAction(post.id, 'automate');
-                  }}
-                />
-              )}
-              {isAutomated && (
-                <MenuAction
-                  label="Edit Repeat"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onAction(post.id, 'edit-automation');
-                  }}
-                />
-              )}
-              {isAutomated && (
-                <MenuAction
-                  label="Remove Repeat"
-                  danger
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onAction(post.id, 'remove-automation');
                   }}
                 />
               )}

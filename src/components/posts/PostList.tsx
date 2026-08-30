@@ -23,14 +23,13 @@ interface PostListResponse {
 // ---- Component ----
 
 interface PostListProps {
-  automationsOnly?: boolean;
   labelIds?: number[];
   labelMode?: 'or' | 'and';
   /** Viewer's org role (SSR-provided) — drives approval actions and publish gating. */
   userRole?: string;
 }
 
-export function PostList({ automationsOnly, labelIds, labelMode, userRole }: PostListProps = {}) {
+export function PostList({ labelIds, labelMode, userRole }: PostListProps = {}) {
   const viewerCanPublish = can(userRole ?? 'owner', 'post:publish');
   const viewerCanApprove = can(userRole ?? 'owner', 'post:approve');
   const [rejectReason, setRejectReason] = useState('');
@@ -47,12 +46,6 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
   // Data — defined after postsKey below
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Plan gate for repeat posts
-  const { data: _quotaData } = useApi<{ plan?: string; limits?: { recurringSchedules?: number } }>(
-    automationsOnly ? '/api/quotas/usage' : null,
-  );
-  const planGated = _quotaData ? _quotaData.limits?.recurringSchedules === 0 : false;
-  const planName = _quotaData?.plan === 'free' ? 'Free' : (_quotaData?.plan ?? '');
 
   // Selection
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -84,9 +77,7 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
   const _postsParams = new URLSearchParams();
   _postsParams.set('page', String(page));
   _postsParams.set('limit', String(limit));
-  if (automationsOnly) _postsParams.set('recurring', 'true');
-  if (status === 'recurring') _postsParams.set('recurring', 'true');
-  else if (status === 'needs_approval') _postsParams.set('approvalStatus', 'pending');
+  if (status === 'needs_approval') _postsParams.set('approvalStatus', 'pending');
   else if (status) _postsParams.set('status', status);
   if (debouncedSearch) _postsParams.set('search', debouncedSearch);
   if (labelIds && labelIds.length > 0) {
@@ -149,14 +140,6 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
       window.location.href = `/compose?repost=${postId}`;
       return;
     }
-    if (action === 'automate') {
-      window.location.href = `/repeat-posts/new?post=${postId}`;
-      return;
-    }
-    if (action === 'edit-automation') {
-      window.location.href = `/repeat-posts/new?post=${postId}`;
-      return;
-    }
     if (action === 'fb-story' || action === 'ig-story') {
       setConfirmAction({ postId, action });
       return;
@@ -187,9 +170,6 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
       } else if (action === 'fb-story' || action === 'ig-story') {
         url = `/api/posts/${postId}/story`;
         method = 'POST';
-      } else if (action === 'remove-automation') {
-        url = `/api/posts/${postId}`;
-        method = 'PATCH';
       } else {
         url = `/api/posts/${postId}`;
         method = 'DELETE';
@@ -199,9 +179,6 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
       if (action === 'fb-story' || action === 'ig-story') {
         fetchOpts.headers = { 'Content-Type': 'application/json' };
         fetchOpts.body = JSON.stringify({ platform: action === 'fb-story' ? 'facebook' : 'instagram' });
-      } else if (action === 'remove-automation') {
-        fetchOpts.headers = { 'Content-Type': 'application/json' };
-        fetchOpts.body = JSON.stringify({ recurringScheduleId: null });
       } else if (action === 'reject') {
         fetchOpts.headers = { 'Content-Type': 'application/json' };
         fetchOpts.body = JSON.stringify({ reason: rejectReason.trim() || undefined });
@@ -214,7 +191,6 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
         const actionLabel: Record<string, string> = {
           publish: 'Publish', retry: 'Retry', delete: 'Delete',
           'fb-story': 'Facebook Story', 'ig-story': 'Instagram Story',
-          'remove-automation': 'Remove repeat',
           approve: 'Approve', reject: 'Reject',
         };
         throw new Error(apiMsg || `${actionLabel[action] || action} failed`);
@@ -284,57 +260,11 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
     flexWrap: 'wrap',
   };
 
-  if (planGated) {
-    return (
-      <div style={containerStyle}>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '80px 20px',
-            gap: '20px',
-          }}
-        >
-          <div
-            style={{
-              width: '72px',
-              height: '72px',
-              borderRadius: '50%',
-              background: 'var(--stone-100)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--stone-400)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-          </div>
-          <div style={{ textAlign: 'center', maxWidth: '400px' }}>
-            <p style={{ fontSize: 'var(--text-lg)', fontWeight: 600, color: 'var(--stone-800)', marginBottom: '8px' }}>
-              Repeat Posts require a Pro plan
-            </p>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--stone-500)', lineHeight: 'var(--leading-relaxed)' }}>
-              Automatically repost content daily, weekly, or monthly. Upgrade to Pro to unlock repeat posts.
-            </p>
-          </div>
-          <a href="/settings/billing" style={{ textDecoration: 'none' }}>
-            <Button variant="primary" size="md">
-              Upgrade to Pro
-            </Button>
-          </a>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div style={containerStyle}>
       {/* Top bar */}
       <div style={topBarStyle}>
-        {!automationsOnly && <StatusFilter value={status} onChange={handleStatusChange} />}
+        <StatusFilter value={status} onChange={handleStatusChange} />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {/* Search */}
@@ -362,7 +292,7 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
             <input
               type="text"
               className="input"
-              placeholder={automationsOnly ? 'Search repeat posts...' : 'Search posts...'}
+              placeholder="Search posts..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{
@@ -375,7 +305,7 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
             />
           </div>
 
-          <a href={automationsOnly ? '/repeat-posts/new' : '/compose'} style={{ textDecoration: 'none' }}>
+          <a href="/compose" style={{ textDecoration: 'none' }}>
             <Button variant="primary" size="sm">
               <svg
                 width="14"
@@ -389,7 +319,7 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
                 <line x1="7" y1="1" x2="7" y2="13" />
                 <line x1="1" y1="7" x2="13" y2="7" />
               </svg>
-              {automationsOnly ? 'New Repeat Post' : 'Compose'}
+              Compose
             </Button>
           </a>
         </div>
@@ -543,7 +473,7 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
                 marginBottom: '4px',
               }}
             >
-              {automationsOnly ? 'No repeat posts found' : 'No posts found'}
+              No posts found
             </p>
             <p
               style={{
@@ -554,14 +484,12 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
             >
               {status || debouncedSearch
                 ? 'Try adjusting your filters or search query.'
-                : automationsOnly
-                  ? 'Create your first repeat post to get started.'
-                  : 'Create your first post to get started.'}
+                : 'Create your first post to get started.'}
             </p>
           </div>
-          <a href={automationsOnly ? '/repeat-posts/new' : '/compose'} style={{ textDecoration: 'none' }}>
+          <a href="/compose" style={{ textDecoration: 'none' }}>
             <Button variant="primary" size="sm">
-              {automationsOnly ? 'New Repeat Post' : 'Compose a Post'}
+              Compose a Post
             </Button>
           </a>
         </div>
@@ -710,9 +638,7 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
                 ? 'Reject Post'
             : confirmAction?.action === 'publish'
               ? 'Publish'
-              : confirmAction?.action === 'remove-automation'
-                ? 'Remove Repeat'
-                : confirmAction?.action === 'fb-story'
+              : confirmAction?.action === 'fb-story'
                   ? 'Post to Facebook Story'
                   : confirmAction?.action === 'ig-story'
                     ? 'Post to Instagram Story'
@@ -727,8 +653,6 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
                 ? 'The post returns to drafts and the author is notified with your reason.'
             : confirmAction?.action === 'publish'
               ? 'This will immediately publish the post to all selected platforms.'
-              : confirmAction?.action === 'remove-automation'
-                ? 'This will remove the repeat schedule from this post. The post itself will not be deleted.'
                 : confirmAction?.action === 'fb-story'
                   ? 'This will publish the first media as a Facebook Story (disappears after 24h).'
                   : confirmAction?.action === 'ig-story'
@@ -763,7 +687,7 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
             Cancel
           </Button>
           <Button
-            variant={confirmAction?.action === 'delete' || confirmAction?.action === 'remove-automation' || confirmAction?.action === 'reject' ? 'danger' : 'primary'}
+            variant={confirmAction?.action === 'delete' || confirmAction?.action === 'reject' ? 'danger' : 'primary'}
             size="sm"
             loading={actionLoading}
             onClick={executeAction}
@@ -776,9 +700,7 @@ export function PostList({ automationsOnly, labelIds, labelMode, userRole }: Pos
                   ? 'Reject'
               : confirmAction?.action === 'publish'
                 ? 'Publish'
-                : confirmAction?.action === 'remove-automation'
-                  ? 'Remove'
-                  : confirmAction?.action === 'fb-story' || confirmAction?.action === 'ig-story'
+                : confirmAction?.action === 'fb-story' || confirmAction?.action === 'ig-story'
                     ? 'Post Story'
                     : 'Retry'}
           </Button>

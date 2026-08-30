@@ -6,13 +6,11 @@ import {
   postLabels,
   labels,
   channels,
-  recurringSchedules,
   mediaFiles as mediaFilesTable,
 } from '@lib/db/schema';
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import { getMediaPublicUrl } from '@lib/media/upload';
 import { logActivity } from '@lib/activity/log';
-import { calculateNextRunAt } from '@lib/schedules/next-run';
 import { captureApiError } from '@lib/errors';
 import { validatePlatformContentShape, validatePlatformSpecificShape, validatePostTypeOverridesShape, validateThreadPartsShape, validatePostMediaForPlatforms } from '@lib/platforms/validation';
 import type { PlatformName } from '@lib/platforms/types';
@@ -102,46 +100,12 @@ export const GET: APIRoute = async ({ locals, params }) => {
         }));
     }
 
-    // Fetch recurring schedule details if linked
-    let recurringSchedule = null;
-    if (post.recurringScheduleId) {
-      const [sched] = await db
-        .select()
-        .from(recurringSchedules)
-        .where(
-          and(
-            eq(recurringSchedules.id, post.recurringScheduleId),
-            eq(recurringSchedules.organizationId, locals.auth.organizationId),
-          ),
-        )
-        .limit(1);
-      if (sched) {
-        recurringSchedule = {
-          id: sched.id,
-          name: sched.name,
-          frequency: sched.frequency,
-          dayOfWeek: sched.dayOfWeek,
-          dayOfMonth: sched.dayOfMonth,
-          timeOfDay: sched.timeOfDay,
-          timezone: sched.timezone,
-          channelIds: sched.channelIds,
-          mediaFileIds: sched.mediaFileIds,
-          contentTemplate: sched.contentTemplate,
-          postTypeOverrides: sched.postTypeOverrides,
-          platformSpecific: sched.platformSpecific,
-          requireApproval: sched.requireApproval,
-          isActive: sched.isActive,
-          nextRunAt: sched.nextRunAt,
-        };
-      }
-    }
 
     return json({
       ...post,
       mediaFiles: resolvedMedia,
       postPlatforms: platforms,
       labels: postLabelRows.map((r) => r.label),
-      recurringSchedule,
     });
   } catch (error) {
     captureApiError('GET /api/posts/[id]', error);
@@ -207,7 +171,6 @@ export const PUT: APIRoute = async ({ locals, params, request }) => {
       platformSpecific,
       deleteMediaAfterPublish,
       linkTrackingOverride,
-      repeatSchedule,
       threadParts,
       platformContent,
       platformThreadParts,
@@ -469,11 +432,8 @@ export const PUT: APIRoute = async ({ locals, params, request }) => {
     if (postTypeOverrides !== undefined) updateFields.postTypeOverrides = postTypeOverrides;
     if (platformSpecific !== undefined) updateFields.platformSpecific = platformSpecific;
     if (platformContent !== undefined) updateFields.platformContent = platformContent;
-    // Recurring posts must never delete their media (the schedule re-uses it on every
-    // run) — re-apply the create-time clamp here or an update can opt back in and
-    // strand all future occurrences without media.
     if (deleteMediaAfterPublish !== undefined) {
-      updateFields.deleteMediaAfterPublish = existing.recurringScheduleId ? false : deleteMediaAfterPublish;
+      updateFields.deleteMediaAfterPublish = deleteMediaAfterPublish;
     }
     // Tri-state: `null` is a real value here ("inherit the org setting"), so it
     // must be distinguished from the field being absent. Only `undefined` means
@@ -504,45 +464,6 @@ export const PUT: APIRoute = async ({ locals, params, request }) => {
       .where(eq(posts.id, postId))
       .returning();
 
-    // Update linked recurring schedule if repeat settings are provided
-    if (repeatSchedule && existing.recurringScheduleId) {
-      const freq = repeatSchedule.frequency || 'weekly';
-      const dow = freq === 'weekly' && repeatSchedule.daysOfWeek?.length > 0
-        ? repeatSchedule.daysOfWeek[0] : null;
-      const dom = freq === 'monthly' ? (repeatSchedule.dayOfMonth ?? 1) : null;
-      const tod = repeatSchedule.timeOfDay || '09:00';
-      const tz = repeatSchedule.timezone || timezone || 'UTC';
-      const channelIdList = channelEntries
-        ? channelEntries.map((ch: { channelId: number }) => ch.channelId)
-        : undefined;
-
-      const schedUpdate: Record<string, unknown> = {
-        // Keep the schedule's approval gate in step with the post's (see create path).
-        requireApproval: newApprovalStatus === 'pending',
-        frequency: freq,
-        dayOfWeek: dow,
-        dayOfMonth: dom,
-        timeOfDay: tod,
-        timezone: tz,
-        contentTemplate: content ?? existing.content,
-        nextRunAt: calculateNextRunAt(freq, dow, dom, tod, tz),
-      };
-      if (channelIdList) schedUpdate.channelIds = channelIdList;
-      if (mediaFiles !== undefined) schedUpdate.mediaFileIds = mediaFiles;
-      if (postTypeOverrides !== undefined) schedUpdate.postTypeOverrides = postTypeOverrides;
-      if (postFormat !== undefined) schedUpdate.postFormat = postFormat;
-      if (threadParts !== undefined) schedUpdate.threadParts = effectiveFormat === 'thread' ? threadParts : null;
-
-      await db
-        .update(recurringSchedules)
-        .set(schedUpdate)
-        .where(
-          and(
-            eq(recurringSchedules.id, existing.recurringScheduleId),
-            eq(recurringSchedules.organizationId, locals.auth.organizationId),
-          ),
-        );
-    }
 
     // When channels change, replace postPlatform entries. Atomic delete+reinsert so a
     // failure mid-way can't strip every channel off the post (which would then publish
@@ -637,116 +558,7 @@ export const PUT: APIRoute = async ({ locals, params, request }) => {
   }
 };
 
-// ---------- PATCH: Partial update (e.g. remove repeat schedule) ----------
-
-export const PATCH: APIRoute = async ({ locals, params, request }) => {
-  const { user } = locals.auth;
-  if (!user) {
-    return json({ error: { message: 'Unauthorized', code: 'UNAUTHORIZED' } }, 401);
-  }
-
-  // Post writes require `post:create` — `viewer` is read-only by definition and
-  // must not be able to create, edit, or delete posts (or consume post quota).
-  if (!can(locals.auth.organizationRole, 'post:create')) {
-    return json({ error: { message: 'Your role is read-only and cannot modify posts.', code: 'FORBIDDEN' } }, 403);
-  }
-
-  const postId = getPostId(params);
-  if (!postId) {
-    return json({ error: { message: 'Invalid post ID', code: 'VALIDATION_ERROR' } }, 400);
-  }
-
-  try {
-    const [existing] = await db
-      .select()
-      .from(posts)
-      .where(and(eq(posts.id, postId), eq(posts.organizationId, locals.auth.organizationId)));
-
-    if (!existing) {
-      return json({ error: { message: 'Post not found', code: 'NOT_FOUND' } }, 404);
-    }
-
-    const body = await request.json();
-
-    // PATCH is deliberately narrow: it exists only to attach/detach a recurring
-    // schedule. Every other edit — including status and scheduledAt — belongs on
-    // PUT. Accepting those fields and returning 200 without applying them made
-    // callers believe an edit had landed when nothing had changed (a client
-    // promoted 90 drafts to 'scheduled' this way and every one stayed a draft),
-    // so name the offending fields and point at the verb that handles them.
-    const PATCHABLE_FIELDS = new Set(['recurringScheduleId']);
-    const unsupported = Object.keys(body).filter((k) => !PATCHABLE_FIELDS.has(k));
-    if (unsupported.length > 0) {
-      return json(
-        {
-          error: {
-            message:
-              `PATCH /api/posts/{id} only supports recurringScheduleId. ` +
-              `Use PUT /api/posts/${postId} to change ${unsupported.join(', ')}.`,
-            code: 'VALIDATION_ERROR',
-            unsupportedFields: unsupported,
-          },
-        },
-        400,
-      );
-    }
-
-    const updateFields: Record<string, unknown> = { updatedAt: new Date() };
-
-    if ('recurringScheduleId' in body) {
-      updateFields.recurringScheduleId = body.recurringScheduleId;
-
-      // When removing a repeat schedule (setting to null), deactivate the orphaned schedule
-      if (body.recurringScheduleId === null && existing.recurringScheduleId) {
-        await db
-          .update(recurringSchedules)
-          .set({ isActive: false })
-          .where(
-            and(
-              eq(recurringSchedules.id, existing.recurringScheduleId),
-              eq(recurringSchedules.organizationId, locals.auth.organizationId),
-            ),
-          );
-      }
-    }
-
-    const [updatedPost] = await db
-      .update(posts)
-      .set(updateFields)
-      .where(eq(posts.id, postId))
-      .returning();
-
-    const platforms = await db
-      .select()
-      .from(postPlatforms)
-      .where(eq(postPlatforms.postId, postId));
-
-    const labelRows = await db
-      .select({ label: labels })
-      .from(postLabels)
-      .innerJoin(labels, eq(postLabels.labelId, labels.id))
-      .where(eq(postLabels.postId, postId));
-
-    logActivity({
-      userId: user.id,
-      organizationId: locals.auth.organizationId,
-      action: 'post.updated',
-      resourceId: postId,
-      details: { patch: true },
-    });
-
-    return json({
-      ...updatedPost,
-      postPlatforms: platforms,
-      labels: labelRows.map((r) => r.label),
-    });
-  } catch (error) {
-    captureApiError('PATCH /api/posts/[id]', error);
-    return json({ error: { message: 'Internal server error', code: 'INTERNAL_ERROR' } }, 500);
-  }
-};
-
-// ---------- DELETE: Delete post and related records ----------
+// ---------- DELETE// ---------- DELETE: Delete post and related records ----------
 
 export const DELETE: APIRoute = async ({ locals, params }) => {
   const { user } = locals.auth;
@@ -774,19 +586,6 @@ export const DELETE: APIRoute = async ({ locals, params }) => {
 
     if (!existing) {
       return json({ error: { message: 'Post not found', code: 'NOT_FOUND' } }, 404);
-    }
-
-    // Deactivate the linked recurring schedule so it stops generating new posts
-    if (existing.recurringScheduleId) {
-      await db
-        .update(recurringSchedules)
-        .set({ isActive: false })
-        .where(
-          and(
-            eq(recurringSchedules.id, existing.recurringScheduleId),
-            eq(recurringSchedules.organizationId, locals.auth.organizationId),
-          ),
-        );
     }
 
     // Delete related records first, then the post

@@ -173,7 +173,7 @@ vi.mock('@lib/jobs/queue', () => ({
 // Import handlers AFTER mocks
 // ---------------------------------------------------------------------------
 import { GET as ListPosts, POST as CreatePost } from '@/pages/api/posts/index';
-import { GET as GetPost, PUT as UpdatePost, PATCH as PatchPost, DELETE as DeletePost } from '@/pages/api/posts/[id]';
+import { GET as GetPost, PUT as UpdatePost, DELETE as DeletePost } from '@/pages/api/posts/[id]';
 import { logActivity } from '@lib/activity/log';
 
 import { createMockContext, parseResponse } from '../helpers/api-mock';
@@ -518,34 +518,6 @@ describe('POST /api/posts', () => {
     expect(draft.status).toBe(201);
   });
 
-  it('forces deleteMediaAfterPublish=false for a recurring post even if the client sent true (regression)', async () => {
-    queryChain.then = (resolve: any) => resolve([{ id: 1, platform: 'facebook' }]); // channel ownership
-    queryChain.returning = vi.fn().mockResolvedValue([{ ...SAMPLE_POST, id: 30, status: 'scheduled' }]);
-
-    const ctx = createMockContext({
-      user: USER_A,
-      organizationId: 1,
-      body: {
-        content: 'Daily repeat',
-        status: 'scheduled',
-        scheduledAt: '2026-06-01T09:00:00Z',
-        channels: [{ channelId: 1, platform: 'facebook' }],
-        deleteMediaAfterPublish: true,            // client says delete…
-        repeatSchedule: { frequency: 'daily' },   // …but it repeats, so media must be kept
-      },
-    });
-    const res = await CreatePost(ctx as any);
-    const { status } = await parseResponse(res);
-    expect(status).toBe(201);
-
-    // The post insert must have overridden the flag to false (recurring re-uses media).
-    const postInsert = (queryChain.values as any).mock.calls
-      .map((c: any[]) => c[0])
-      .find((v: any) => v && typeof v === 'object' && !Array.isArray(v) && 'deleteMediaAfterPublish' in v);
-    expect(postInsert).toBeDefined();
-    expect(postInsert.deleteMediaAfterPublish).toBe(false);
-  });
-
   it('defaults to keeping media (deleteMediaAfterPublish=false) when the client does not opt in (regression)', async () => {
     queryChain.then = (resolve: any) => resolve([{ id: 1, platform: 'facebook' }]); // channel ownership
     queryChain.returning = vi.fn().mockResolvedValue([{ ...SAMPLE_POST, id: 31, status: 'scheduled' }]);
@@ -633,25 +605,6 @@ describe('PUT /api/posts/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetChain([SAMPLE_POST]);
-  });
-
-  it('forces deleteMediaAfterPublish=false for a recurring-linked post even if the client sent true', async () => {
-    const recurringPost = { ...SAMPLE_POST, recurringScheduleId: 5 };
-    resetChain([recurringPost]);
-    queryChain.then = (resolve: any) => resolve([recurringPost]);
-
-    const ctx = createMockContext({
-      user: USER_A,
-      params: { id: '1' },
-      organizationId: 1,
-      body: { deleteMediaAfterPublish: true },
-    });
-    const res = await UpdatePost(ctx as any);
-    const { status } = await parseResponse(res);
-    expect(status).toBe(200);
-    expect(queryChain.set).toHaveBeenCalledWith(
-      expect.objectContaining({ deleteMediaAfterPublish: false }),
-    );
   });
 
   // The capability an API client reported as missing: promoting an existing draft
@@ -813,64 +766,6 @@ describe('DELETE /api/posts/[id]', () => {
   });
 });
 
-describe('PATCH /api/posts/[id] — scope of the narrow update verb', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    resetChain([SAMPLE_POST]);
-    queryChain.then = (resolve: any) => resolve([SAMPLE_POST]);
-  });
-
-  it('applies recurringScheduleId, the one field it owns', async () => {
-    const ctx = createMockContext({
-      user: USER_A,
-      params: { id: '1' },
-      organizationId: 1,
-      body: { recurringScheduleId: null },
-    });
-    const res = await PatchPost(ctx as any);
-    const { status } = await parseResponse(res);
-    expect(status).toBe(200);
-    expect(queryChain.set).toHaveBeenCalledWith(
-      expect.objectContaining({ recurringScheduleId: null }),
-    );
-  });
-
-  // Regression: PATCH used to accept any body, ignore everything except
-  // recurringScheduleId, and still return 200 — so a client that PATCHed
-  // {status:'scheduled'} onto 90 drafts got 90 success responses and 90 posts
-  // that were still drafts. Silence on an unsupported field is worse than a 400.
-  it('rejects status instead of silently ignoring it, and names the right verb', async () => {
-    const ctx = createMockContext({
-      user: USER_A,
-      params: { id: '1' },
-      organizationId: 1,
-      body: { status: 'scheduled', scheduledAt: '2099-01-01T00:00:00.000Z' },
-    });
-    const res = await PatchPost(ctx as any);
-    const { status, data } = await parseResponse(res);
-    expect(status).toBe(400);
-    expect(data.error.code).toBe('VALIDATION_ERROR');
-    expect(data.error.unsupportedFields).toEqual(['status', 'scheduledAt']);
-    expect(data.error.message).toContain('PUT /api/posts/1');
-    // Nothing was written.
-    expect(queryChain.set).not.toHaveBeenCalled();
-  });
-
-  it('rejects a mix of supported and unsupported fields rather than half-applying', async () => {
-    const ctx = createMockContext({
-      user: USER_A,
-      params: { id: '1' },
-      organizationId: 1,
-      body: { recurringScheduleId: null, content: 'edited' },
-    });
-    const res = await PatchPost(ctx as any);
-    const { status, data } = await parseResponse(res);
-    expect(status).toBe(400);
-    expect(data.error.unsupportedFields).toEqual(['content']);
-    expect(queryChain.set).not.toHaveBeenCalled();
-  });
-});
-
 // ---------------------------------------------------------------------------
 // Role floor: `viewer` is read-only (audit F5)
 // ---------------------------------------------------------------------------
@@ -900,8 +795,8 @@ describe('viewer role is read-only on the posts surface', () => {
     expect(mockCheckPostQuotasBatch).not.toHaveBeenCalled();
   });
 
-  it('403s PUT, PATCH and DELETE on /api/posts/[id]', async () => {
-    for (const handler of [UpdatePost, PatchPost, DeletePost]) {
+  it('403s PUT and DELETE on /api/posts/[id]', async () => {
+    for (const handler of [UpdatePost, DeletePost]) {
       const res = await handler(asViewer({ params: { id: '5' }, body: { content: 'x' } }) as any);
       const { status, data } = await parseResponse(res);
       expect(status).toBe(403);

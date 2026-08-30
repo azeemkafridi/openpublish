@@ -11,12 +11,11 @@
  *    re-authorizing on the platform.
  *
  * Both modes soft-delete (the row survives so post_platforms/account_metrics
- * history does too) and deactivate any recurring schedule left with no active
- * channel.
+ * history does too).
  */
 import { db } from '../db';
-import { channels, recurringSchedules } from '../db/schema';
-import { eq, and, inArray, sql } from 'drizzle-orm';
+import { channels } from '../db/schema';
+import { eq, and } from 'drizzle-orm';
 
 const SENSITIVE_METADATA_KEYS = ['pageAccessToken', 'access_token', 'clientSecret'];
 
@@ -64,39 +63,6 @@ export async function deactivateChannel(opts: {
     if (updated.length === 0) return false;
   }
 
-  await deactivateOrphanedSchedules(organizationId, channelId);
   return true;
 }
 
-/** Deactivate recurring schedules that reference `channelId` and now have no active channel left. */
-async function deactivateOrphanedSchedules(organizationId: number, channelId: number): Promise<void> {
-  const schedulesWithChannel = await db
-    .select()
-    .from(recurringSchedules)
-    .where(
-      and(
-        eq(recurringSchedules.organizationId, organizationId),
-        eq(recurringSchedules.isActive, true),
-        sql`${recurringSchedules.channelIds} @> ${JSON.stringify([channelId])}::jsonb`,
-      ),
-    );
-
-  for (const schedule of schedulesWithChannel) {
-    const remainingIds = ((schedule.channelIds || []) as number[]).filter((cid) => cid !== channelId);
-    let hasActiveChannel = false;
-    if (remainingIds.length > 0) {
-      const [active] = await db
-        .select({ id: channels.id })
-        .from(channels)
-        .where(and(eq(channels.isActive, true), inArray(channels.id, remainingIds)))
-        .limit(1);
-      hasActiveChannel = !!active;
-    }
-    if (!hasActiveChannel) {
-      await db
-        .update(recurringSchedules)
-        .set({ isActive: false })
-        .where(eq(recurringSchedules.id, schedule.id));
-    }
-  }
-}

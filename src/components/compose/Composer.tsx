@@ -6,7 +6,7 @@ import { Button } from '@components/ui/Button';
 import { ApiError, parseApiError, type ApiErrorData } from '@components/ui/ApiError';
 import { ChannelSelector, type SelectedChannel } from './ChannelSelector';
 import { MediaUploader, type MediaFile } from './MediaUploader';
-import { SchedulePicker, type AutomationConfig } from './SchedulePicker';
+import { SchedulePicker } from './SchedulePicker';
 import { LabelDropdown } from '../labels/LabelDropdown';
 import { PlatformOptions, validatePlatformOptions, tiktokDisclosureIncomplete, type PlatformSpecific } from './PlatformOptions';
 import { PostFormatBar, POST_FORMATS } from './PostFormatBar';
@@ -337,7 +337,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
   } | null>(null);
   const [platformContent, setPlatformContent] = useState<Record<string, string>>({});
   const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
-  const [repeat, setRepeat] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState('post');
   const [threadParts, setThreadParts] = useState<ThreadPart[]>([
     { content: '', mediaFileIds: [] },
@@ -354,26 +353,9 @@ export default function Composer({ automationMode: automationModeProp, userRole 
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [quotaError, setQuotaError] = useState<ApiErrorData | null>(null);
 
-  // Automation mode (from prop, URL, or loaded post data)
-  const [automationMode, setAutomationMode] = useState(() => {
-    if (automationModeProp) return true;
-    try {
-      return new URLSearchParams(window.location.search).get('automation') === 'true';
-    } catch { return false; }
-  });
-  const [automationConfig, setAutomationConfig] = useState<AutomationConfig>(() => ({
-    frequency: 'weekly',
-    daysOfWeek: [1], // Monday default
-    dayOfMonth: 1,
-    timeOfDay: '09:00',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-  }));
-
-  // Plan gate: block repeat post creation for free users
-  const { data: _quotaData } = useApi<{ limits?: { recurringSchedules?: number } }>(
-    automationMode ? '/api/quotas/usage' : null,
-  );
-  const repeatGated = _quotaData?.limits?.recurringSchedules === 0;
+  // Repeat/automation mode was removed with the automations feature.
+  const automationMode = false;
+  void automationModeProp;
 
   // Link preview — debounced URL detection from content
   const [linkPreview, setLinkPreview] = useState<LinkPreviewData | null>(null);
@@ -521,24 +503,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
           setEditApproval({ status: post.approvalStatus, reason: post.rejectionReason ?? null });
         }
 
-        // Populate repeat/automation state from linked recurring schedule
-        if (post.recurringSchedule) {
-          const sched = post.recurringSchedule;
-          setAutomationMode(true);
-          setRepeat(true);
-          setShowSchedule(true);
-          setAutomationConfig({
-            frequency: sched.frequency || 'weekly',
-            daysOfWeek: sched.dayOfWeek != null ? [sched.dayOfWeek] : [1],
-            dayOfMonth: sched.dayOfMonth ?? 1,
-            timeOfDay: sched.timeOfDay || '09:00',
-            timezone: sched.timezone || post.timezone || 'UTC',
-          });
-          if (sched.timezone) setTimezone(sched.timezone);
-          // An approval-gated schedule keeps the toggle on, so saving an edit
-          // doesn't silently un-gate every future occurrence.
-          if (sched.requireApproval) setRequestApproval(true);
-        }
       })
       .catch(() => { /* ignore */ })
       .finally(() => setLoadingPost(false));
@@ -1193,9 +1157,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
     if (status === 'scheduled' && !scheduledAt && !automationMode && !asapApproval) {
       errors.push('Pick a date and time before scheduling.');
     }
-    if (automationMode && selectedChannels.length > 0 && automationConfig.frequency === 'weekly' && automationConfig.daysOfWeek.length === 0) {
-      errors.push('Select at least one day of the week for weekly repeat post.');
-    }
     if (status !== 'draft') {
       errors.push(...validatePlatformOptions(selectedChannels, platformSpecific, resolvedPostTypes, { content: platformContent.tiktok?.trim() ? platformContent.tiktok : content, videoDurationSec }));
     }
@@ -1242,8 +1203,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
         platformSpecific: firstComment.trim()
           ? { ...platformSpecific, _firstComment: firstComment.trim() }
           : platformSpecific,
-        repeat,
-        repeatSchedule: automationMode ? automationConfig : undefined,
         threadParts: isThreadFormat ? threadParts : undefined,
         autoPlugEnabled: autoPlugEnabled || undefined,
         autoPlugText: autoPlugEnabled ? autoPlugText.trim() || undefined : undefined,
@@ -1292,7 +1251,7 @@ export default function Composer({ automationMode: automationModeProp, userRole 
         setSubmitPhase('done');
         setToast({ message: 'Submitted for approval', type: 'success' });
         setTimeout(() => {
-          window.location.href = automationMode ? '/repeat-posts' : '/calendar';
+          window.location.href = '/calendar';
         }, 800);
         return;
       }
@@ -1317,7 +1276,7 @@ export default function Composer({ automationMode: automationModeProp, userRole 
         if (finalStatus === 'published') {
           setSubmitPhase('done');
           setTimeout(() => {
-            window.location.href = automationMode ? '/repeat-posts' : '/calendar';
+            window.location.href = '/calendar';
           }, 400);
         } else if (finalStatus === 'processing') {
           // Platform (IG/Threads) is still finalizing in the background.
@@ -1325,13 +1284,13 @@ export default function Composer({ automationMode: automationModeProp, userRole 
           setSubmitPhase('done');
           setToast({ message: 'Publishing. Some platforms are still finalizing in the background.', type: 'success' });
           setTimeout(() => {
-            window.location.href = automationMode ? '/repeat-posts' : '/calendar';
+            window.location.href = '/calendar';
           }, 400);
         } else if (finalStatus === 'partial') {
           setSubmitPhase('done');
           setToast({ message: 'Some platforms failed. Check post details.', type: 'error' });
           setTimeout(() => {
-            window.location.href = automationMode ? '/repeat-posts' : '/calendar';
+            window.location.href = '/calendar';
           }, 2000);
         } else {
           setSubmitPhase('error');
@@ -1340,12 +1299,12 @@ export default function Composer({ automationMode: automationModeProp, userRole 
       } else if (status === 'scheduled') {
         setSubmitPhase('done');
         setTimeout(() => {
-          window.location.href = automationMode ? '/repeat-posts' : '/calendar';
+          window.location.href = '/calendar';
         }, 400);
       } else {
         setSubmitPhase('done');
         setTimeout(() => {
-          window.location.href = automationMode ? '/repeat-posts' : '/calendar';
+          window.location.href = '/calendar';
         }, 400);
       }
     } catch (err: any) {
@@ -1358,31 +1317,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
   };
 
   /* ---- Render ---- */
-  if (repeatGated) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 20px', gap: '20px' }}>
-        <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'var(--stone-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--stone-400)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
-        </div>
-        <div style={{ textAlign: 'center', maxWidth: '400px' }}>
-          <p style={{ fontSize: 'var(--text-lg)', fontWeight: 600, color: 'var(--stone-800)', marginBottom: '8px' }}>
-            Repeat Posts require a Pro plan
-          </p>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--stone-500)', lineHeight: 'var(--leading-relaxed)' }}>
-            Automatically repost content daily, weekly, or monthly. Upgrade to Pro to create repeat posts.
-          </p>
-        </div>
-        <a href="/settings/billing" style={{ textDecoration: 'none' }}>
-          <Button variant="primary" size="md">
-            Upgrade to Pro
-          </Button>
-        </a>
-      </div>
-    );
-  }
-
   return (
     <div style={styles.outerWrapper}>
       {/* Two-column grid: left (format bar + composer), right (preview) */}
@@ -1663,11 +1597,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
                     setScheduledAt(at);
                     setTimezone(tz);
                   }}
-                  repeat={repeat}
-                  onRepeatChange={setRepeat}
-                  automationMode={automationMode}
-                  automationConfig={automationConfig}
-                  onAutomationChange={setAutomationConfig}
                 />
               </div>
             )}

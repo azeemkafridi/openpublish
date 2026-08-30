@@ -17,14 +17,10 @@ export interface PlanLimits {
   mediaStorageMB: number;
   apiKeys: number;
   apiRequestsPerDay: number;
-  recurringSchedules: number;
   webhooks: number;
   maxLabels: number;
   maxOrgMembers: number;
   excludedPlatforms: PlatformName[];
-  rssFeeds: number;
-  rssAutoPublish: boolean;
-  rssPollIntervalMinutes: number;
 }
 
 /** -1 = unlimited, 0 = disabled. Self-hosted: everything unlimited. */
@@ -38,14 +34,10 @@ const UNLIMITED: PlanLimits = {
   mediaStorageMB: -1,
   apiKeys: -1,
   apiRequestsPerDay: -1,
-  recurringSchedules: -1,
   webhooks: -1,
   maxLabels: -1,
   maxOrgMembers: -1,
   excludedPlatforms: [],
-  rssFeeds: -1,
-  rssAutoPublish: true,
-  rssPollIntervalMinutes: 15,
 };
 
 export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {

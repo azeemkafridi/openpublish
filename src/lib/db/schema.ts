@@ -86,13 +86,6 @@ export const notificationTypeEnum = pgEnum('notification_type', [
 
 export const userPlanEnum = pgEnum('user_plan', ['free', 'pro', 'business']);
 
-export const recurringFrequencyEnum = pgEnum('recurring_frequency', [
-  'daily',
-  'weekly',
-  'biweekly',
-  'monthly',
-]);
-
 export const orgMemberRoleEnum = pgEnum('org_member_role', [
   'owner',
   'admin',
@@ -310,7 +303,6 @@ export const posts = pgTable(
       .default({}),
     threadParts: jsonb('thread_parts').$type<ThreadPart[] | null>().default(null),
     platformThreadParts: jsonb('platform_thread_parts').$type<Record<string, ThreadPart[]>>().default({}),
-    recurringScheduleId: integer('recurring_schedule_id').references(() => recurringSchedules.id, { onDelete: 'set null' }),
     // Default: KEEP media — it's reclaimed by the 3-month retention sweep, not deleted
     // right after publishing. Opt-in true (per post) for users who want to free storage sooner.
     deleteMediaAfterPublish: boolean('delete_media_after_publish').default(false),
@@ -408,74 +400,6 @@ export const labels = pgTable(
   ],
 );
 
-// RSS/Atom autopost: each feed is polled by the rss worker; new items become
-// posts (draft or auto-published) targeted at channelIds.
-export const rssFeeds = pgTable(
-  'rss_feeds',
-  {
-    id: serial('id').primaryKey(),
-    userId: text('user_id').notNull(),
-    organizationId: integer('organization_id')
-      .notNull()
-      .references(() => organizations.id, { onDelete: 'cascade' }),
-    name: varchar('name', { length: 100 }).notNull(),
-    feedUrl: text('feed_url').notNull(),
-    channelIds: jsonb('channel_ids').notNull().$type<number[]>(),
-    // 'draft' → new items land as drafts for review; 'publish' → auto-publish
-    mode: varchar('mode', { length: 10 }).notNull().default('draft'),
-    // How an item becomes a post: template + media pick + per-channel
-    // overrides (see lib/rss/mapping.ts). NULL → built-in default mapping
-    // ("{title}\n\n{link}", no media) — the original autopost behavior.
-    fieldMapping: jsonb('field_mapping').$type<import('../rss/mapping').RssFieldMapping | null>(),
-    // When true, posts generated from this feed land as approvalStatus='pending'
-    // and wait for an approver (applies to mode='publish'; drafts never publish
-    // on their own anyway).
-    requireApproval: boolean('require_approval').notNull().default(false),
-    enabled: boolean('enabled').notNull().default(true),
-    lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
-    // Baseline sentinel: null until the FIRST SUCCESSFUL poll (which baselines
-    // the backlog without posting). Deliberately separate from lastCheckedAt —
-    // a failed first poll must NOT destroy the sentinel, or the next success
-    // would auto-publish the feed's entire backlog.
-    lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
-    // Error backoff: consecutive failed polls + the earliest next attempt.
-    // nextPollAt null = poll on the next cycle.
-    consecutiveFailures: integer('consecutive_failures').notNull().default(0),
-    nextPollAt: timestamp('next_poll_at', { withTimezone: true }),
-    // Conditional GET (If-None-Match / If-Modified-Since) state.
-    etag: text('etag'),
-    lastModified: text('last_modified'),
-    lastError: text('last_error'),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-  },
-  (table) => [
-    index('rss_feeds_org_idx').on(table.organizationId),
-    index('rss_feeds_enabled_idx').on(table.enabled),
-  ],
-);
-
-// Seen feed items (dedup) and the post each one produced, if any.
-export const rssFeedItems = pgTable(
-  'rss_feed_items',
-  {
-    feedId: integer('feed_id').notNull().references(() => rssFeeds.id, { onDelete: 'cascade' }),
-    guid: varchar('guid', { length: 500 }).notNull(),
-    postId: integer('post_id').references(() => posts.id, { onDelete: 'set null' }),
-    // Item lifecycle: 'baselined' (seen on first successful poll, never posted),
-    // 'claimed' (reserved for posting — transient; rows stuck here mean a crash
-    // between claim and post insert, surfaced by the worker's sweep),
-    // 'posted', or 'skipped' (no channel could take it). Pre-migration rows
-    // default to 'posted' — only 'claimed' is ever queried.
-    status: varchar('status', { length: 10 }).notNull().default('posted'),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.feedId, table.guid] }),
-    index('rss_feed_items_feed_idx').on(table.feedId),
-  ],
-);
-
 // Saved channel groupings ("Sets") for one-click multi-channel targeting in the
 // composer. channelIds is a JSONB array of channels.id values; deleted channels
 // are filtered out at read time rather than cascaded.
@@ -562,46 +486,6 @@ export const mediaLabels = pgTable(
 );
 
 // ============== RECURRING SCHEDULES ==============
-
-export const recurringSchedules = pgTable(
-  'recurring_schedules',
-  {
-    id: serial('id').primaryKey(),
-    userId: text('user_id').notNull(),
-    organizationId: integer('organization_id')
-      .notNull()
-      .references(() => organizations.id, { onDelete: 'cascade' }),
-    name: varchar('name', { length: 255 }).notNull(),
-    frequency: recurringFrequencyEnum('frequency').notNull(),
-    dayOfWeek: integer('day_of_week'),
-    dayOfMonth: integer('day_of_month'),
-    timeOfDay: varchar('time_of_day', { length: 5 }).notNull(),
-    timezone: varchar('timezone', { length: 100 }).default('UTC'),
-    channelIds: jsonb('channel_ids').$type<number[]>().default([]),
-    mediaFileIds: jsonb('media_file_ids').$type<number[]>().default([]),
-    contentTemplate: text('content_template').default(''),
-    postTypeOverrides: jsonb('post_type_overrides')
-      .$type<Record<string, string>>()
-      .default({}),
-    platformSpecific: jsonb('platform_specific')
-      .$type<Record<string, Record<string, unknown>>>()
-      .default({}),
-    postFormat: varchar('post_format', { length: 50 }).default('post'),
-    threadParts: jsonb('thread_parts').$type<ThreadPart[] | null>().default(null),
-    // When true, every occurrence this schedule generates lands as
-    // approvalStatus='pending' and waits for an approver instead of publishing.
-    requireApproval: boolean('require_approval').notNull().default(false),
-    isActive: boolean('is_active').default(true),
-    lastRunAt: timestamp('last_run_at', { withTimezone: true }),
-    nextRunAt: timestamp('next_run_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-  },
-  (table) => [
-    index('recurring_schedules_user_idx').on(table.userId),
-    index('recurring_schedules_org_idx').on(table.organizationId),
-    index('recurring_schedules_active_next_idx').on(table.isActive, table.nextRunAt),
-  ],
-);
 
 // ============== NOTIFICATIONS ==============
 

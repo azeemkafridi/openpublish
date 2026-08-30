@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { addLinksSyncJob, addMetricsSyncJob, getRedisConnection } from '@/lib/jobs/queue';
+import { addMetricsSyncJob, getRedisConnection } from '@/lib/jobs/queue';
 import { invalidateCache } from '@/lib/cache';
 
 function json(data: unknown, status = 200) {
@@ -40,12 +40,6 @@ export const POST: APIRoute = async ({ locals, request }) => {
   await redis.set(floorKey, now, 'EX', FORCE_FLOOR_SECONDS);
 
   await addMetricsSyncJob(organizationId);
-  // Shortlink clicks live in Analytics Engine until the 15-minute sweep moves
-  // them; pulling now means a manual refresh shows recent clicks too. It's
-  // watermarked and globally deduped per minute, so this is cheap and safe.
-  await addLinksSyncJob().catch(() => {
-    /* click sync is best-effort — never fail a metrics refresh over it */
-  });
   await invalidateCache(`cache:analytics:${organizationId}:*`);
 
   return json({ status: 'queued', lastSyncedAt: now });

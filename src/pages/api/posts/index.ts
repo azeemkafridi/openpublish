@@ -6,7 +6,6 @@ import {
   postLabels,
   labels,
   channels,
-  recurringSchedules,
   mediaFiles as mediaFilesTable,
   postMetrics,
 } from '@lib/db/schema';
@@ -24,8 +23,7 @@ import {
 import { addPublishJob } from '@lib/jobs/queue';
 import { getMediaPublicUrl } from '@lib/media/upload';
 import { logActivity } from '@lib/activity/log';
-import { calculateNextRunAt } from '@lib/schedules/next-run';
-import { checkPostQuotasBatch, checkRecurringScheduleQuota, checkScheduledPerDayQuota, checkPlatformAllowed, getOrgPlan } from '@lib/quotas/check';
+import { checkPostQuotasBatch, checkScheduledPerDayQuota, checkPlatformAllowed, getOrgPlan } from '@lib/quotas/check';
 import { quotaExceededResponse } from '@lib/quotas/errors';
 import { PLATFORM_CHAR_LIMITS, validatePlatformContentShape, validatePlatformSpecificShape, validatePostTypeOverridesShape, validateThreadPartsShape, validatePostMediaForPlatforms } from '@lib/platforms/validation';
 import { getPlatformAvailabilityFor } from '@lib/platforms/availability';
@@ -88,7 +86,6 @@ export const GET: APIRoute = async ({ locals, url }) => {
   const scheduledFrom = url.searchParams.get('scheduledFrom');
   const scheduledTo = url.searchParams.get('scheduledTo');
   const search = url.searchParams.get('search');
-  const recurring = url.searchParams.get('recurring');
 
   try {
     // Build where conditions
@@ -111,9 +108,6 @@ export const GET: APIRoute = async ({ locals, url }) => {
       conditions.push(eq(posts.approvalStatus, approvalStatusFilter as any));
     }
 
-    if (recurring === 'true') {
-      conditions.push(sql`${posts.recurringScheduleId} IS NOT NULL`);
-    }
 
     if (from) {
       conditions.push(gte(posts.createdAt, new Date(from)));
@@ -354,30 +348,6 @@ export const GET: APIRoute = async ({ locals, url }) => {
       }
     }
 
-    // Fetch recurring schedule details for posts with recurringScheduleId
-    const scheduleIds = [...new Set(postRows.map((p) => p.recurringScheduleId).filter(Boolean))] as number[];
-    let scheduleMap = new Map<number, { frequency: string; dayOfWeek: number | null; dayOfMonth: number | null; timeOfDay: string; timezone: string | null; nextRunAt: Date | null; isActive: boolean | null }>();
-    if (scheduleIds.length > 0) {
-      const scheduleRows = await db
-        .select({
-          id: recurringSchedules.id,
-          frequency: recurringSchedules.frequency,
-          dayOfWeek: recurringSchedules.dayOfWeek,
-          dayOfMonth: recurringSchedules.dayOfMonth,
-          timeOfDay: recurringSchedules.timeOfDay,
-          timezone: recurringSchedules.timezone,
-          nextRunAt: recurringSchedules.nextRunAt,
-          isActive: recurringSchedules.isActive,
-        })
-        .from(recurringSchedules)
-        // Defense-in-depth: scope to the org even though scheduleIds come from
-        // org-filtered posts (uses recurring_schedules_org index, no extra cost).
-        .where(and(inArray(recurringSchedules.id, scheduleIds), eq(recurringSchedules.organizationId, locals.auth.organizationId)));
-      for (const s of scheduleRows) {
-        scheduleMap.set(s.id, s);
-      }
-    }
-
     // Aggregate metrics per post — take ONLY the latest snapshot per post_platform
     // (sync worker inserts a new row each cycle; SUM would over-count by N snapshots),
     // then sum across platforms for the same post.
@@ -436,7 +406,6 @@ export const GET: APIRoute = async ({ locals, url }) => {
         mediaFiles: resolvedMedia,
         postPlatforms: platformsMap[post.id] || [],
         labels: labelsMap[post.id] || [],
-        recurringSchedule: post.recurringScheduleId ? scheduleMap.get(post.recurringScheduleId) ?? null : null,
         metrics: metricsMap.get(post.id) ?? null,
       };
     });
@@ -483,7 +452,6 @@ export const POST: APIRoute = async ({ locals, request }) => {
       platformSpecific,
       deleteMediaAfterPublish,
       linkTrackingOverride,
-      repeatSchedule,
       threadParts,
       platformContent,
       platformThreadParts,
@@ -556,7 +524,7 @@ export const POST: APIRoute = async ({ locals, request }) => {
       );
     }
 
-    if (postStatus === 'scheduled' && !scheduledAt && !repeatSchedule) {
+    if (postStatus === 'scheduled' && !scheduledAt) {
       return json(
         { error: { message: 'scheduledAt is required for scheduled posts', code: 'VALIDATION_ERROR' } },
         400,
@@ -569,16 +537,6 @@ export const POST: APIRoute = async ({ locals, request }) => {
     if (postStatus === 'scheduled' && scheduledAt) {
       const perDay = await checkScheduledPerDayQuota(locals.auth.organizationId, new Date(scheduledAt), timezone || 'UTC');
       if (!perDay.allowed) return quotaExceededResponse(perDay, quotas.plan);
-    }
-
-    // Recurring-schedule quota — checked BEFORE inserting the post so an over-quota repeat
-    // request doesn't leave a ghost scheduled post behind (the inserts happen further down).
-    if (repeatSchedule && repeatSchedule.frequency) {
-      const recurQuota = await checkRecurringScheduleQuota(locals.auth.organizationId);
-      if (!recurQuota.allowed) {
-        const plan = await getOrgPlan(locals.auth.organizationId);
-        return quotaExceededResponse(recurQuota, plan);
-      }
     }
 
     if (!channelEntries || !Array.isArray(channelEntries) || channelEntries.length === 0) {
@@ -778,9 +736,8 @@ export const POST: APIRoute = async ({ locals, request }) => {
         platformSpecific: platformSpecific || {},
         platformContent: platformContent || {},
         // Default KEEP (reclaimed by the 3-month retention sweep); a client may opt
-        // in to delete-after-publish. A recurring post can NEVER delete its media
-        // (the schedule re-uses it every run), so force false regardless of the flag.
-        deleteMediaAfterPublish: repeatSchedule?.frequency ? false : (deleteMediaAfterPublish ?? false),
+        // in to delete-after-publish.
+        deleteMediaAfterPublish: deleteMediaAfterPublish ?? false,
         // Tri-state: only a real boolean is an override. Anything else (absent,
         // null, junk) stores NULL, meaning "inherit the org setting".
         linkTrackingOverride: typeof linkTrackingOverride === 'boolean' ? linkTrackingOverride : null,
@@ -822,51 +779,6 @@ export const POST: APIRoute = async ({ locals, request }) => {
         .insert(postLabels)
         .values(labelEntries)
         .returning();
-    }
-
-    // If repeat schedule config is provided, create the recurring schedule (quota was
-    // already checked above, before the post was inserted).
-    if (repeatSchedule && repeatSchedule.frequency) {
-      const channelIdList = channelEntries.map((ch: { channelId: number }) => ch.channelId);
-      const schedFreq = repeatSchedule.frequency;
-      const schedDow = schedFreq === 'weekly' && repeatSchedule.daysOfWeek?.length > 0
-        ? repeatSchedule.daysOfWeek[0]
-        : null;
-      const schedDom = schedFreq === 'monthly' ? repeatSchedule.dayOfMonth : null;
-      const schedTime = repeatSchedule.timeOfDay || '09:00';
-      const schedTz = repeatSchedule.timezone || timezone || 'UTC';
-      const nextRunAt = calculateNextRunAt(schedFreq, schedDow, schedDom, schedTime, schedTz);
-      const [schedule] = await db
-        .insert(recurringSchedules)
-        .values({
-          userId: user.id,
-          organizationId: locals.auth.organizationId,
-          name: (content || 'Repeat Post').slice(0, 50),
-          frequency: schedFreq,
-          dayOfWeek: schedDow,
-          dayOfMonth: schedDom,
-          timeOfDay: schedTime,
-          timezone: schedTz,
-          channelIds: channelIdList,
-          mediaFileIds: (mediaFiles || []),
-          contentTemplate: content || '',
-          postTypeOverrides: postTypeOverrides || {},
-          postFormat: postFormat || 'post',
-          threadParts: postFormat === 'thread' && threadParts ? threadParts : null,
-          // Carry the post's approval gate onto the schedule so EVERY future
-          // occurrence is held for review too, not just this first one.
-          requireApproval: approvalStatus === 'pending',
-          isActive: true,
-          nextRunAt,
-        })
-        .returning();
-
-      // Link the post to the recurring schedule
-      await db
-        .update(posts)
-        .set({ recurringScheduleId: schedule.id })
-        .where(eq(posts.id, newPost.id));
-      newPost.recurringScheduleId = schedule.id;
     }
 
     // If scheduled and scheduledAt is in the past or now, immediately queue publish.

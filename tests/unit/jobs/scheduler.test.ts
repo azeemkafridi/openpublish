@@ -27,8 +27,7 @@ vi.mock('@/lib/jobs/queue', () => {
       TOKEN_REFRESH: 'token-refresh',
       MEDIA_CLEANUP: 'media-cleanup',
       NOTIFICATION: 'notification',
-      RECURRING: 'recurring',
-      WEBHOOK: 'webhook-deliver',
+          WEBHOOK: 'webhook-deliver',
       RETENTION: 'retention',
       METRICS_SYNC: 'metrics-sync',
     },
@@ -71,37 +70,12 @@ describe('setupRecurringJobs', () => {
     vi.clearAllMocks();
   });
 
-  it('registers all 10 recurring jobs', async () => {
+  it('registers all 6 recurring jobs', async () => {
     await setupRecurringJobs();
 
-    // 10 jobs: check-scheduled, refresh-expiring-tokens, process-recurring,
-    // check-cleanup, sync-all-metrics, poll-feeds (RSS), snapshot-x-api-usage,
-    // run-retention, sync-link-clicks, process-channel-slots
-    expect(mockQueueAdd).toHaveBeenCalledTimes(10);
-  });
-
-  it('registers the shortlink click sync with a 15-minute cron', async () => {
-    await setupRecurringJobs();
-
-    expect(mockQueueAdd).toHaveBeenCalledWith(
-      'sync-link-clicks',
-      {},
-      expect.objectContaining({
-        repeat: { pattern: '*/15 * * * *' },
-      }),
-    );
-  });
-
-  it('registers the RSS poller with a 15-minute cron', async () => {
-    await setupRecurringJobs();
-
-    expect(mockQueueAdd).toHaveBeenCalledWith(
-      'poll-feeds',
-      {},
-      expect.objectContaining({
-        repeat: { pattern: '*/15 * * * *' },
-      }),
-    );
+    // 6 jobs: check-scheduled, refresh-expiring-tokens, check-cleanup,
+    // sync-all-metrics, snapshot-x-api-usage, run-retention
+    expect(mockQueueAdd).toHaveBeenCalledTimes(6);
   });
 
   it('registers check-scheduled with every-minute cron', async () => {
@@ -139,18 +113,6 @@ describe('setupRecurringJobs', () => {
     expect(tokenRefreshCall![2].repeat.pattern).not.toBe('0 */6 * * *');
     // Must be the 40-minute pattern
     expect(tokenRefreshCall![2].repeat.pattern).toBe('*/40 * * * *');
-  });
-
-  it('registers recurring schedule processor with every-minute cron', async () => {
-    await setupRecurringJobs();
-
-    expect(mockQueueAdd).toHaveBeenCalledWith(
-      'process-recurring',
-      {},
-      expect.objectContaining({
-        repeat: { pattern: '* * * * *' },
-      }),
-    );
   });
 
   it('registers media cleanup with every-5-minutes cron', async () => {

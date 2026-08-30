@@ -6,7 +6,6 @@ CREATE TYPE "public"."platform_name" AS ENUM('facebook', 'instagram', 'x', 'tikt
 CREATE TYPE "public"."platform_status" AS ENUM('pending', 'publishing', 'published', 'failed', 'processing', 'unconfirmed');--> statement-breakpoint
 CREATE TYPE "public"."post_approval_status" AS ENUM('none', 'pending', 'approved', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."post_status" AS ENUM('draft', 'scheduled', 'publishing', 'published', 'partial', 'failed', 'processing');--> statement-breakpoint
-CREATE TYPE "public"."recurring_frequency" AS ENUM('daily', 'weekly', 'biweekly', 'monthly');--> statement-breakpoint
 CREATE TYPE "public"."user_plan" AS ENUM('free', 'pro', 'business');--> statement-breakpoint
 CREATE TABLE "account" (
 	"id" text PRIMARY KEY NOT NULL,
@@ -242,7 +241,6 @@ CREATE TABLE "posts" (
 	"platform_specific" jsonb DEFAULT '{}'::jsonb,
 	"thread_parts" jsonb DEFAULT 'null'::jsonb,
 	"platform_thread_parts" jsonb DEFAULT '{}'::jsonb,
-	"recurring_schedule_id" integer,
 	"delete_media_after_publish" boolean DEFAULT false,
 	"auto_plug_enabled" boolean DEFAULT false,
 	"auto_plug_text" text,
@@ -270,61 +268,6 @@ CREATE TABLE "push_tokens" (
 	"created_at" timestamp with time zone DEFAULT now(),
 	"last_seen_at" timestamp with time zone DEFAULT now(),
 	CONSTRAINT "push_tokens_token_unique" UNIQUE("token")
-);
---> statement-breakpoint
-CREATE TABLE "recurring_schedules" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"user_id" text NOT NULL,
-	"organization_id" integer NOT NULL,
-	"name" varchar(255) NOT NULL,
-	"frequency" "recurring_frequency" NOT NULL,
-	"day_of_week" integer,
-	"day_of_month" integer,
-	"time_of_day" varchar(5) NOT NULL,
-	"timezone" varchar(100) DEFAULT 'UTC',
-	"channel_ids" jsonb DEFAULT '[]'::jsonb,
-	"media_file_ids" jsonb DEFAULT '[]'::jsonb,
-	"content_template" text DEFAULT '',
-	"post_type_overrides" jsonb DEFAULT '{}'::jsonb,
-	"platform_specific" jsonb DEFAULT '{}'::jsonb,
-	"post_format" varchar(50) DEFAULT 'post',
-	"thread_parts" jsonb DEFAULT 'null'::jsonb,
-	"require_approval" boolean DEFAULT false NOT NULL,
-	"is_active" boolean DEFAULT true,
-	"last_run_at" timestamp with time zone,
-	"next_run_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now()
-);
---> statement-breakpoint
-CREATE TABLE "rss_feed_items" (
-	"feed_id" integer NOT NULL,
-	"guid" varchar(500) NOT NULL,
-	"post_id" integer,
-	"status" varchar(10) DEFAULT 'posted' NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now(),
-	CONSTRAINT "rss_feed_items_feed_id_guid_pk" PRIMARY KEY("feed_id","guid")
-);
---> statement-breakpoint
-CREATE TABLE "rss_feeds" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"user_id" text NOT NULL,
-	"organization_id" integer NOT NULL,
-	"name" varchar(100) NOT NULL,
-	"feed_url" text NOT NULL,
-	"channel_ids" jsonb NOT NULL,
-	"mode" varchar(10) DEFAULT 'draft' NOT NULL,
-	"field_mapping" jsonb,
-	"require_approval" boolean DEFAULT false NOT NULL,
-	"enabled" boolean DEFAULT true NOT NULL,
-	"last_checked_at" timestamp with time zone,
-	"last_success_at" timestamp with time zone,
-	"consecutive_failures" integer DEFAULT 0 NOT NULL,
-	"next_poll_at" timestamp with time zone,
-	"etag" text,
-	"last_modified" text,
-	"last_error" text,
-	"created_at" timestamp with time zone DEFAULT now(),
-	"updated_at" timestamp with time zone DEFAULT now()
 );
 --> statement-breakpoint
 CREATE TABLE "session" (
@@ -399,13 +342,8 @@ ALTER TABLE "post_metrics" ADD CONSTRAINT "post_metrics_organization_id_organiza
 ALTER TABLE "post_platforms" ADD CONSTRAINT "post_platforms_post_id_posts_id_fk" FOREIGN KEY ("post_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "post_platforms" ADD CONSTRAINT "post_platforms_channel_id_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."channels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "posts" ADD CONSTRAINT "posts_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "posts" ADD CONSTRAINT "posts_recurring_schedule_id_recurring_schedules_id_fk" FOREIGN KEY ("recurring_schedule_id") REFERENCES "public"."recurring_schedules"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "push_tokens" ADD CONSTRAINT "push_tokens_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "push_tokens" ADD CONSTRAINT "push_tokens_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "recurring_schedules" ADD CONSTRAINT "recurring_schedules_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rss_feed_items" ADD CONSTRAINT "rss_feed_items_feed_id_rss_feeds_id_fk" FOREIGN KEY ("feed_id") REFERENCES "public"."rss_feeds"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rss_feed_items" ADD CONSTRAINT "rss_feed_items_post_id_posts_id_fk" FOREIGN KEY ("post_id") REFERENCES "public"."posts"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rss_feeds" ADD CONSTRAINT "rss_feeds_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "x_api_usage_daily" ADD CONSTRAINT "x_api_usage_daily_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "account_user_idx" ON "account" USING btree ("user_id");--> statement-breakpoint
@@ -467,12 +405,6 @@ CREATE INDEX "posts_org_created_idx" ON "posts" USING btree ("organization_id","
 CREATE INDEX "posts_org_status_sched_idx" ON "posts" USING btree ("organization_id","status","scheduled_at");--> statement-breakpoint
 CREATE INDEX "posts_content_trgm_idx" ON "posts" USING gin ("content" gin_trgm_ops);--> statement-breakpoint
 CREATE INDEX "push_tokens_user_idx" ON "push_tokens" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "recurring_schedules_user_idx" ON "recurring_schedules" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "recurring_schedules_org_idx" ON "recurring_schedules" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "recurring_schedules_active_next_idx" ON "recurring_schedules" USING btree ("is_active","next_run_at");--> statement-breakpoint
-CREATE INDEX "rss_feed_items_feed_idx" ON "rss_feed_items" USING btree ("feed_id");--> statement-breakpoint
-CREATE INDEX "rss_feeds_org_idx" ON "rss_feeds" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "rss_feeds_enabled_idx" ON "rss_feeds" USING btree ("enabled");--> statement-breakpoint
 CREATE INDEX "session_user_idx" ON "session" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "x_api_usage_daily_unique" ON "x_api_usage_daily" USING btree ("organization_id","date","action_type");--> statement-breakpoint
 CREATE INDEX "x_api_usage_daily_org_idx" ON "x_api_usage_daily" USING btree ("organization_id");--> statement-breakpoint

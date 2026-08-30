@@ -7,7 +7,6 @@ import {
   mediaFiles,
   activityLogs,
   notifications,
-  recurringSchedules,
   postMetrics,
   accountMetrics,
 } from '../db/schema';
@@ -54,32 +53,21 @@ async function deleteStoredFile(mediaId: number, path: string | null | undefined
 /**
  * Purge content from old posts while keeping rows for analytics.
  *
- * Skips posts linked to active recurring schedules. Nulls out content + mediaFiles
- * references only — it does NOT delete the media itself, because the same file may be
- * reused by another post or an active schedule. Once the reference is removed,
- * purgeOrphanedMedia (run immediately after) reference-checks each file and deletes
- * only true orphans.
+ * Nulls out content + mediaFiles references only — it does NOT delete the media
+ * itself, because the same file may be reused by another post. Once the reference
+ * is removed, purgeOrphanedMedia (run immediately after) reference-checks each
+ * file and deletes only true orphans.
  */
 async function purgeOldPostContent(): Promise<number> {
   const cutoff = getCutoffDate();
   let totalPurged = 0;
 
-  // Get IDs of active recurring schedules (never touch their posts' content)
-  const activeSchedules = await db
-    .select({ id: recurringSchedules.id })
-    .from(recurringSchedules)
-    .where(eq(recurringSchedules.isActive, true));
-  const activeScheduleIds = new Set(activeSchedules.map((s) => s.id));
-
-  // Paginate by id. Posts we skip (linked to an active schedule) keep their content, so
-  // a non-cursor query would re-select them every batch and loop forever once a batch is
-  // entirely skipped rows. The cursor guarantees forward progress.
+  // Paginate by id — the cursor guarantees forward progress.
   let lastId = 0;
   for (;;) {
     const oldPosts = await db
       .select({
         id: posts.id,
-        recurringScheduleId: posts.recurringScheduleId,
       })
       .from(posts)
       .where(
@@ -98,14 +86,9 @@ async function purgeOldPostContent(): Promise<number> {
     for (const post of oldPosts) {
       lastId = post.id;
 
-      // Skip posts linked to active repeat schedules — leave their content intact.
-      if (post.recurringScheduleId && activeScheduleIds.has(post.recurringScheduleId)) {
-        continue;
-      }
-
-      // Drop only the post's content and its media references. The media rows are left
-      // for purgeOrphanedMedia, which deletes a file only if no post and no active
-      // schedule still references it.
+      // Drop only the post's content and its media references. The media rows are
+      // left for purgeOrphanedMedia, which deletes a file only if no post still
+      // references it.
       await db
         .update(posts)
         .set({
@@ -122,10 +105,9 @@ async function purgeOldPostContent(): Promise<number> {
 }
 
 /**
- * Sweep orphaned media — files older than the retention window that no post and no
- * active recurring schedule references anymore. Catches uploads abandoned before
- * submit, leftovers from a bulk import that failed mid-batch, and media left behind
- * when a repeat schedule is stopped. (Media still attached to a post is handled by
+ * Sweep orphaned media — files older than the retention window that no post
+ * references anymore. Catches uploads abandoned before submit and leftovers from
+ * an import that failed mid-batch. (Media still attached to a post is handled by
  * purgeOldPostContent; this is the "attached to nothing" case it can't see.)
  *
  * Paginates by id so a still-referenced candidate is never re-scanned in a loop, and
@@ -166,18 +148,6 @@ async function purgeOrphanedMedia(): Promise<number> {
         ))
         .limit(1);
       if (post) continue;
-
-      // Still re-used by an active recurring schedule?
-      const [sched] = await db
-        .select({ id: recurringSchedules.id })
-        .from(recurringSchedules)
-        .where(and(
-          eq(recurringSchedules.organizationId, mf.organizationId),
-          eq(recurringSchedules.isActive, true),
-          sql`${recurringSchedules.mediaFileIds} @> ${JSON.stringify([mf.id])}::jsonb`,
-        ))
-        .limit(1);
-      if (sched) continue;
 
       // Orphan — delete every derived file, then the row.
       await deleteStoredFile(mf.id, mf.originalPath);

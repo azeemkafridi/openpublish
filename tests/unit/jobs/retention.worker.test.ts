@@ -230,14 +230,11 @@ describe('retention worker', () => {
     const media2 = { id: 2, organizationId: 1, originalPath: 'original/img2.jpg', thumbnailPath: null, previewPath: null, variants: {} };
 
     mockDbSelectResults.push(
-      [],               // purgeOldPostContent: active schedules
       [oldPost],        // purgeOldPostContent: old posts batch 1
       [],               // purgeOldPostContent: batch 2 (empty -> exit loop)
       [media1, media2], // purgeOrphanedMedia: candidate batch
       [],               // media1: post containment -> none
-      [],               // media1: active-schedule containment -> none
       [],               // media2: post containment -> none
-      [],               // media2: active-schedule containment -> none
       [],               // purgeOrphanedMedia: next batch (empty -> break)
     );
 
@@ -266,7 +263,6 @@ describe('retention worker', () => {
     const sharedMedia = { id: 7, organizationId: 1, originalPath: 'original/shared.jpg', thumbnailPath: null, previewPath: null, variants: {} };
 
     mockDbSelectResults.push(
-      [],             // active schedules
       [oldPost],      // old posts batch 1
       [],             // old posts batch 2 (empty -> break)
       [sharedMedia],  // orphan candidate batch
@@ -286,53 +282,26 @@ describe('retention worker', () => {
     );
   });
 
-  it('paginates old posts by an advancing id cursor so an all-skipped batch cannot loop forever (C2)', async () => {
-    // Both posts are linked to an active schedule, so both are skipped. Without a cursor,
-    // the next query would re-select the same skipped rows forever. The cursor must
-    // advance past the last id seen.
-    const skipped = [
-      { id: 10, recurringScheduleId: 100 },
-      { id: 20, recurringScheduleId: 100 },
+  it('paginates old posts by an advancing id cursor (C2)', async () => {
+    const batch = [
+      { id: 10, mediaFiles: [] },
+      { id: 20, mediaFiles: [] },
     ];
 
     mockDbSelectResults.push(
-      [{ id: 100 }], // active schedules
-      skipped,       // batch 1 (both skipped)
+      batch,         // batch 1
       [],            // batch 2 (empty -> break)
       [],            // orphan sweep: no candidates
     );
 
     await capturedProcessor!({ name: 'run-retention', data: {} });
 
-    // No content nulled (every post skipped).
-    expect(mockDbUpdateSets).toHaveLength(0);
-
-    // Two post-content queries were issued, and the cursor advanced from 0 to the last
-    // processed id (20) — proving forward pagination rather than re-scanning.
+    // The cursor advanced from 0 to the last processed id (20) — proving
+    // forward pagination rather than re-scanning.
     const cursors = postContentCursors();
     expect(cursors.length).toBeGreaterThanOrEqual(2);
     expect(cursors[0]).toBe(0);
     expect(cursors[1]).toBe(20);
-  });
-
-  it('skips posts linked to active recurring schedules', async () => {
-    const oldPost = {
-      id: 42, userId: 'user-1', organizationId: 1,
-      mediaFiles: [], recurringScheduleId: 100,
-    };
-
-    mockDbSelectResults.push(
-      [{ id: 100 }],    // active schedule with id=100
-      [oldPost],         // old post linked to active schedule
-      [],                // next batch (empty)
-    );
-
-    mockDbDeleteResults.push([], []);
-
-    await capturedProcessor!({ name: 'run-retention', data: {} });
-
-    // Post content should NOT be nulled out
-    expect(mockDbUpdateSets).toHaveLength(0);
   });
 
   it('re-throws errors from purge operations', async () => {
@@ -369,7 +338,7 @@ describe('retention worker', () => {
     ).rejects.toThrow('DB connection failed');
   });
 
-  it('sweeps orphaned media older than the window that no post or active schedule references', async () => {
+  it('sweeps orphaned media older than the window that no post references', async () => {
     const orphan = {
       id: 50,
       organizationId: 1,
@@ -379,11 +348,9 @@ describe('retention worker', () => {
       variants: {},
     };
     mockDbSelectResults.push(
-      [],         // purgeOldPostContent: active schedules
       [],         // purgeOldPostContent: old posts (none -> exit)
       [orphan],   // purgeOrphanedMedia: candidate batch
       [],         // post containment for #50 -> referenced by no post
-      [],         // active-schedule containment for #50 -> none
       [],         // purgeOrphanedMedia: next batch (empty -> break)
     );
     mockDbDeleteResults.push([]); // orphan row delete

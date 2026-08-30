@@ -16,8 +16,6 @@ export interface SchedulePickerProps {
   scheduledAt: string | null; // ISO string
   timezone: string;
   onChange: (scheduledAt: string | null, timezone: string) => void;
-  repeat: boolean;
-  onRepeatChange: (repeat: boolean) => void;
   automationMode?: boolean;
   automationConfig?: AutomationConfig | null;
   onAutomationChange?: (config: AutomationConfig) => void;
@@ -243,7 +241,7 @@ const s = {
 /* ------------------------------------------------------------------ */
 
 export function SchedulePicker({
-  scheduledAt, timezone, onChange, repeat, onRepeatChange,
+  scheduledAt, timezone, onChange,
   automationMode, automationConfig, onAutomationChange,
 }: SchedulePickerProps) {
 
@@ -483,22 +481,6 @@ export function SchedulePicker({
           </div>
         </div>
 
-        {/* Repeat */}
-        <div style={{ flex: '1 1 140px' }}>
-          <label style={s.fieldLabel}>Repeat</label>
-          <div style={s.selectWrap}>
-            <select
-              className="input"
-              value={repeat ? 'repeat' : 'none'}
-              onChange={(e) => onRepeatChange(e.target.value === 'repeat')}
-              style={{ appearance: 'none', paddingRight: '36px', cursor: 'pointer' }}
-            >
-              <option value="none">Do not repeat</option>
-              <option value="repeat">Repeat</option>
-            </select>
-            <ChevronIcon />
-          </div>
-        </div>
       </div>
 
       {/* Relative time hint */}

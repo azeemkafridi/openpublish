@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db } from '@lib/db';
-import { posts, postPlatforms, postLabels, recurringSchedules } from '@lib/db/schema';
+import { posts, postPlatforms, postLabels } from '@lib/db/schema';
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import { addPublishJob } from '@lib/jobs/queue';
 import { logActivity } from '@lib/activity/log';
@@ -53,7 +53,7 @@ export const POST: APIRoute = async ({ locals, request }) => {
 
     // Verify all posts belong to the user
     const userPosts = await db
-      .select({ id: posts.id, status: posts.status, recurringScheduleId: posts.recurringScheduleId })
+      .select({ id: posts.id, status: posts.status })
       .from(posts)
       .where(and(inArray(posts.id, postIds), eq(posts.organizationId, locals.auth.organizationId)));
 
@@ -64,16 +64,6 @@ export const POST: APIRoute = async ({ locals, request }) => {
 
     switch (action) {
       case 'delete': {
-        // Deactivate linked recurring schedules before deleting posts
-        const scheduleIds = userPosts
-          .map((p) => p.recurringScheduleId)
-          .filter((id): id is number => id !== null && id !== undefined);
-        if (scheduleIds.length > 0) {
-          await db
-            .update(recurringSchedules)
-            .set({ isActive: false })
-            .where(inArray(recurringSchedules.id, scheduleIds));
-        }
 
         // Delete related records first
         await db.delete(postLabels).where(inArray(postLabels.postId, ownedIds));

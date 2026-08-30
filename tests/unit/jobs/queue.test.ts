@@ -87,7 +87,6 @@ describe('QUEUE_NAMES', () => {
     expect(QUEUE_NAMES.TOKEN_REFRESH).toBe('token-refresh');
     expect(QUEUE_NAMES.MEDIA_CLEANUP).toBe('media-cleanup');
     expect(QUEUE_NAMES.NOTIFICATION).toBe('notification');
-    expect(QUEUE_NAMES.RECURRING).toBe('recurring');
     expect(QUEUE_NAMES.WEBHOOK).toBe('webhook-deliver');
     expect(QUEUE_NAMES.RETENTION).toBe('retention');
     expect(QUEUE_NAMES.METRICS_SYNC).toBe('metrics-sync');

@@ -7,7 +7,6 @@ import { Spinner } from '../ui/Spinner';
 import { useApi } from '@lib/swr';
 import { PlatformIcon } from '../channels/PlatformIcon';
 import { useQueryState } from '@lib/useQueryState';
-import { projectOccurrences, type ProjectableSchedule } from '@lib/schedules/occurrences';
 
 const DAY_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -101,11 +100,6 @@ function groupPostsByHour(posts: CalendarPost[]): Map<number, CalendarPost[]> {
 /* ------------------------------------------------------------------ */
 /*  Recurring-schedule ghost occurrences                                */
 /* ------------------------------------------------------------------ */
-
-interface ScheduleRow extends ProjectableSchedule {
-  id: number;
-  name: string;
-}
 
 interface GhostOccurrence {
   scheduleId: number;
@@ -380,8 +374,7 @@ export default function CalendarView() {
       params.set('scheduledFrom', toLocalDayStartUTC(_firstVisible));
       params.set('scheduledTo', toLocalDayEndUTC(_lastVisible));
     }
-    if (statusFilter === 'recurring') params.set('recurring', 'true');
-    else if (statusFilter) params.set('status', statusFilter);
+    if (statusFilter) params.set('status', statusFilter);
     return params.toString();
   }, [viewMode, selectedDate, _firstVisible, _lastVisible, statusFilter]);
 
@@ -490,36 +483,9 @@ export default function CalendarView() {
     return () => clearHoverTimers();
   }, []);
 
-  // ---- Upcoming recurring occurrences (ghost entries) ----
-  // Recurring schedules materialise a post only AT fire time, so without this
-  // the future series is invisible — a workspace with 76 active schedules
-  // showed an empty calendar. Projected client-side from each schedule's
-  // nextRunAt; a fired occurrence exists as a real post and is never
-  // double-drawn because projections start strictly at nextRunAt (future).
-  const { data: _schedules } = useApi<ScheduleRow[]>('/api/schedules');
-  // Ghosts are upcoming *scheduled* work — hidden under a filter that asks
-  // for a specific past status.
-  const showGhosts = !statusFilter || statusFilter === 'recurring' || statusFilter === 'scheduled';
-  const ghostsByDate = useMemo(() => {
-    const map = new Map<string, GhostOccurrence[]>();
-    if (!showGhosts || !Array.isArray(_schedules)) return map;
-    const from = viewMode === 'day' && selectedDate
-      ? new Date(selectedDate + 'T00:00:00')
-      : new Date(_firstVisible.getFullYear(), _firstVisible.getMonth(), _firstVisible.getDate());
-    const to = viewMode === 'day' && selectedDate
-      ? new Date(new Date(selectedDate + 'T00:00:00').getTime() + 86_399_999)
-      : new Date(_lastVisible.getFullYear(), _lastVisible.getMonth(), _lastVisible.getDate(), 23, 59, 59, 999);
-    for (const s of _schedules) {
-      for (const at of projectOccurrences(s, from, to)) {
-        const key = toDateKey(at);
-        const arr = map.get(key) ?? [];
-        arr.push({ scheduleId: s.id, name: s.name, at });
-        map.set(key, arr);
-      }
-    }
-    for (const [, arr] of map) arr.sort((a, b) => a.at.getTime() - b.at.getTime());
-    return map;
-  }, [_schedules, showGhosts, viewMode, selectedDate, _firstVisible, _lastVisible]);
+  // Repeat-schedule ghost occurrences were removed with the automations
+  // feature; the maps stay so the render paths below stay simple.
+  const ghostsByDate = useMemo(() => new Map<string, GhostOccurrence[]>(), []);
 
   const postsByDate = useMemo(() => groupPostsByDate(posts), [posts]);
   // In day view, filter to posts whose local date matches selectedDate
