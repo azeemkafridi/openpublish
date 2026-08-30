@@ -27,7 +27,6 @@ export const QUEUE_NAMES = {
   TOKEN_REFRESH: 'token-refresh',
   MEDIA_CLEANUP: 'media-cleanup',
   NOTIFICATION: 'notification',
-  WEBHOOK: 'webhook-deliver',
   RETENTION: 'retention',
   METRICS_SYNC: 'metrics-sync',
   ENGAGEMENT_CHECK: 'engagement-check',
@@ -152,25 +151,6 @@ export async function addNotificationJob(
     'send-notification',
     { userId, type, title, message, data, organizationId },
     { removeOnComplete: 100, removeOnFail: 100 },
-  );
-}
-
-export async function addWebhookDeliveryJob(
-  webhookId: number,
-  url: string,
-  body: string,
-  signature: string,
-) {
-  const queue = getQueue(QUEUE_NAMES.WEBHOOK);
-  await queue.add(
-    'deliver-webhook',
-    { webhookId, url, body, signature },
-    {
-      attempts: 5,
-      backoff: { type: 'exponential', delay: 10000 },
-      removeOnComplete: 100,
-      removeOnFail: 200,
-    },
   );
 }
 

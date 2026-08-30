@@ -22,6 +22,7 @@
 // ---------------------------------------------------------------------------
 
 process.env.REQUIRE_EMAIL_VERIFICATION = 'true';
+process.env.BASE_URL = 'http://localhost:4321';
 process.env.RESEND_API_KEY = process.env.RESEND_API_KEY || 'test-resend-key';
 
 let capturedConfig: any = null;

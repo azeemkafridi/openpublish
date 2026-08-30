@@ -110,9 +110,10 @@ export const auth = betterAuth({
   },
   trustedOrigins: [
     baseUrl,
-    'http://localhost:4321',
-    'http://localhost:3000',
-    'http://localhost:3001',
+    // Localhost conveniences only when the instance itself runs on localhost.
+    ...(baseUrl.includes('localhost')
+      ? ['http://localhost:4321', 'http://localhost:3000', 'http://localhost:3001']
+      : []),
     ...(process.env.TRUSTED_ORIGINS
       ? process.env.TRUSTED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
       : []),

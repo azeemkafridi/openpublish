@@ -102,29 +102,6 @@ const icons = {
       <path d="M10.3 15a1.5 1.5 0 01-2.6 0" />
     </svg>
   ),
-  // Parent "Automations" section — a lightning bolt reads as "automatic".
-  automations: (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="9.75 1.5 2.25 10.5 9 10.5 8.25 16.5 15.75 7.5 9 7.5 9.75 1.5" />
-    </svg>
-  ),
-  // Repeat Posts — circular arrows (recurring).
-  repeat: (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9a6 6 0 0111.5-2.4" />
-      <polyline points="15 3 15 7 11 7" />
-      <path d="M15 9a6 6 0 01-11.5 2.4" />
-      <polyline points="3 15 3 11 7 11" />
-    </svg>
-  ),
-  // Publish from RSS — the standard feed mark (dot + two arcs).
-  rss: (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="4.25" cy="13.75" r="1.3" fill="currentColor" stroke="none" />
-      <path d="M4.25 9.25 A4.5 4.5 0 0 1 8.75 13.75" />
-      <path d="M4.25 5.25 A8.5 8.5 0 0 1 12.75 13.75" />
-    </svg>
-  ),
   labels: (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 3.5A1.5 1.5 0 013.5 2h4.586a1.5 1.5 0 011.06.44l6.354 6.353a1.5 1.5 0 010 2.121l-4.586 4.586a1.5 1.5 0 01-2.121 0L2.44 9.147A1.5 1.5 0 012 8.086V3.5z" />
@@ -221,11 +198,9 @@ export default function Sidebar({ currentPath, userName, userEmail, userRole, or
   const [devOpen, setDevOpen] = useState(() =>
     ['/docs', '/developer'].some((p) => currentPath.startsWith(p)),
   );
-  const [adminOpen, setAdminOpen] = useState(() => currentPath.startsWith('/admin'));
 
   const secondaryNav: NavItem[] = secondaryNavBase;
 
-  const adminNav: NavItem[] = [];
 
   // Listen for mobile breakpoint
   useEffect(() => {
@@ -509,91 +484,6 @@ export default function Sidebar({ currentPath, userName, userEmail, userRole, or
         </ul>
         )}
 
-        {/* Admin submenu — only for admins (routes are also enforced by middleware) */}
-        {userRole === 'admin' && (!isCollapsed ? (
-          // padding is uniform on purpose: with vertical-only padding the hovered
-          // child's 10px corners sat flush against the container's left/right edges,
-          // so the same rounded rect looked inset at the top and clipped at the
-          // sides. 4px all round + a 14px shell keeps the radii concentric.
-          <div style={{ marginTop: '2px', background: 'var(--surface-main)', borderRadius: '14px', padding: '4px' }}>
-            <button
-              type="button"
-              className="sidebar-nav-item"
-              onClick={() => setAdminOpen((v) => !v)}
-              style={{
-                ...styles.navItem,
-                width: '100%',
-                background: 'transparent',
-                color: '#57534E',
-                justifyContent: 'flex-start',
-                textAlign: 'left',
-              }}
-            >
-              <span style={styles.navIcon}>
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 1.5l6 2.5v4c0 3.5-2.5 6-6 7-3.5-1-6-3.5-6-7v-4l6-2.5z" />
-                </svg>
-              </span>
-              <span style={styles.navLabel}>Admin</span>
-              <svg
-                width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-                style={{ marginLeft: 'auto', transition: 'transform 150ms ease', transform: adminOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-              >
-                <polyline points="4 6 8 10 12 6" />
-              </svg>
-            </button>
-            {adminOpen && (
-              <ul style={{ ...styles.navList, marginTop: '2px' }}>
-                {adminNav.map((item) => {
-                  const active = isActive(item.href);
-                  return (
-                    <li key={item.href}>
-                      <a
-                        href={item.href}
-                        className="sidebar-nav-item"
-                        style={{
-                          ...styles.navItem,
-                          fontSize: '13px',
-                          padding: '8px 10px',
-                          ...(active ? styles.navItemActive : {}),
-                        }}
-                        title={item.label}
-                      >
-                        <span style={{ ...styles.navIcon, ...(active ? styles.navIconActive : {}) }}>
-                          {item.icon}
-                        </span>
-                        <span style={styles.navLabel}>{item.label}</span>
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        ) : (
-          /* Collapsed sidebar: show admin items as icons only */
-          adminNav.map((item) => {
-            const active = isActive(item.href);
-            return (
-              <a
-                key={item.href}
-                href={item.href}
-                className="sidebar-nav-item"
-                style={{
-                  ...styles.navItem,
-                  ...(active ? styles.navItemActive : {}),
-                  ...styles.navItemCollapsed,
-                  margin: '0 auto',
-                }}
-                title={item.label}
-              >
-                <span style={{ ...styles.navIcon, ...(active ? styles.navIconActive : {}) }}>
-                  {item.icon}
-                </span>
-              </a>
-            );
-          })
-        ))}
 
         {/* Collapse toggle — hidden on mobile */}
         {!isMobile && (

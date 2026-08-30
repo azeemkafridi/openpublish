@@ -30,8 +30,7 @@ const EXPIRATION_OPTIONS = [
 ];
 
 export default function ApiKeyManager() {
-  const { data: quotaData } = useApi<{ limits?: { apiKeys?: number } }>('/api/quotas/usage');
-  const apiDisabled = quotaData?.limits?.apiKeys === 0;
+  const apiDisabled = false; // self-hosted: API access is always available
 
   const { data: _keyData, error: _keyError, isLoading: loading, mutate: mutateKeys } = useApi<{ keys?: ApiKey[] } | ApiKey[]>(apiDisabled ? null : '/api/api-keys');
   const keys = Array.isArray(_keyData) ? _keyData : _keyData?.keys ?? [];

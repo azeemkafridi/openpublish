@@ -98,53 +98,6 @@ function groupPostsByHour(posts: CalendarPost[]): Map<number, CalendarPost[]> {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Recurring-schedule ghost occurrences                                */
-/* ------------------------------------------------------------------ */
-
-interface GhostOccurrence {
-  scheduleId: number;
-  name: string;
-  at: Date;
-}
-
-/**
- * A future run of a repeat schedule. Deliberately NOT a CalendarCard: no post
- * exists yet, so there is nothing to open, drag, or hover — the dashed border
- * says "planned, not created". Clicking goes to the schedule's management
- * surface instead.
- */
-function GhostChip({ ghost, variant }: { ghost: GhostOccurrence; variant?: 'day' }) {
-  const timeStr = ghost.at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return (
-    <div
-      title={`Repeat schedule "${ghost.name}" runs at ${timeStr}. Click to manage repeat schedules.`}
-      onClick={(e) => { e.stopPropagation(); window.location.href = '/repeat-posts'; }}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: variant === 'day' ? '6px 8px' : '1px 4px',
-        borderRadius: 6,
-        border: '1px dashed var(--stone-300)',
-        background: 'transparent',
-        cursor: 'pointer',
-        overflow: 'hidden',
-        minWidth: 0,
-      }}
-    >
-      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--stone-400)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-        <polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
-        <polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
-      </svg>
-      <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--stone-400)', flexShrink: 0 }}>{timeStr}</span>
-      <span style={{ fontSize: 9, color: 'var(--stone-400)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {ghost.name}
-      </span>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /*  Single-post rendering (shared by day view & PostHoverPopover)      */
 /* ------------------------------------------------------------------ */
 
@@ -483,9 +436,6 @@ export default function CalendarView() {
     return () => clearHoverTimers();
   }, []);
 
-  // Repeat-schedule ghost occurrences were removed with the automations
-  // feature; the maps stay so the render paths below stay simple.
-  const ghostsByDate = useMemo(() => new Map<string, GhostOccurrence[]>(), []);
 
   const postsByDate = useMemo(() => groupPostsByDate(posts), [posts]);
   // In day view, filter to posts whose local date matches selectedDate
@@ -495,16 +445,6 @@ export default function CalendarView() {
     return posts.filter((p) => toDateKey(new Date(p.scheduled_at)) === selectedDate);
   }, [posts, viewMode, selectedDate]);
   const postsByHour = useMemo(() => groupPostsByHour(dayViewPosts), [dayViewPosts]);
-  const dayGhosts = viewMode === 'day' && selectedDate ? ghostsByDate.get(selectedDate) ?? [] : [];
-  const ghostsByHour = useMemo(() => {
-    const map = new Map<number, GhostOccurrence[]>();
-    for (const g of dayGhosts) {
-      const arr = map.get(g.at.getHours()) ?? [];
-      arr.push(g);
-      map.set(g.at.getHours(), arr);
-    }
-    return map;
-  }, [dayGhosts]);
   const numWeeks = calendarDays.length / 7;
 
   // ---- Month navigation ----
@@ -859,24 +799,6 @@ export default function CalendarView() {
                         </div>
                       )}
 
-                      {/* Upcoming repeat-schedule runs — planned, no post yet. */}
-                      {(() => {
-                        const ghosts = ghostsByDate.get(cell.dateKey) ?? [];
-                        if (ghosts.length === 0) return null;
-                        const GHOST_LIMIT = dayPosts.length > 0 ? 2 : 3;
-                        return (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', marginTop: dayPosts.length > 0 ? '2px' : 0 }}>
-                            {ghosts.slice(0, GHOST_LIMIT).map((g) => (
-                              <GhostChip key={`${g.scheduleId}-${g.at.getTime()}`} ghost={g} />
-                            ))}
-                            {ghosts.length > GHOST_LIMIT && (
-                              <span style={{ fontSize: '9px', color: 'var(--stone-400)', fontWeight: 600, paddingLeft: '2px' }}>
-                                +{ghosts.length - GHOST_LIMIT} repeats
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
                     </div>
                   );
                 })}
@@ -892,7 +814,7 @@ export default function CalendarView() {
               data-testid="day-view-timeline"
               style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', paddingTop: '20px' }}
             >
-              {dayViewPosts.length === 0 && dayGhosts.length === 0 ? (
+              {dayViewPosts.length === 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: '300px', color: 'var(--stone-400)' }}>
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '12px', opacity: 0.5 }}>
                     <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -906,7 +828,6 @@ export default function CalendarView() {
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {HOURS.map((hour) => {
                     const hourPosts = postsByHour.get(hour) ?? [];
-                    const hourGhosts = ghostsByHour.get(hour) ?? [];
                     const isHourDragOver = dragPostId && dragOverHour === hour;
 
                     // Assign columns for posts in this hour
@@ -917,10 +838,7 @@ export default function CalendarView() {
                     );
 
                     // Calculate the needed height: base + space for staggered posts
-                    const minuteMarks = [
-                      ...sortedPosts.map((p) => new Date(p.scheduled_at).getMinutes()),
-                      ...hourGhosts.map((g) => g.at.getMinutes()),
-                    ];
+                    const minuteMarks = sortedPosts.map((p) => new Date(p.scheduled_at).getMinutes());
                     const maxMinute = minuteMarks.length > 0 ? Math.max(...minuteMarks) : 0;
                     // Each minute-offset-pixel = roughly 1px per minute, plus card height
                     const dynamicHeight = Math.max(48, maxMinute + 28);
@@ -997,20 +915,6 @@ export default function CalendarView() {
                               </div>
                             );
                           })}
-                          {/* Ghost runs sit to the right of any real posts in the hour. */}
-                          {hourGhosts.map((g, gi) => (
-                            <div
-                              key={`${g.scheduleId}-${g.at.getTime()}`}
-                              style={{
-                                position: 'absolute',
-                                top: g.at.getMinutes(),
-                                left: (sortedPosts.length + gi) * (COL_WIDTH + COL_GAP),
-                                width: COL_WIDTH,
-                              }}
-                            >
-                              <GhostChip ghost={g} variant="day" />
-                            </div>
-                          ))}
                         </div>
                       </div>
                     );

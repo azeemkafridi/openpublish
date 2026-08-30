@@ -328,13 +328,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
   const [autoRepostEnabled, setAutoRepostEnabled] = useState(false);
   const [autoRepostThreshold, setAutoRepostThreshold] = useState(100);
   const [preserveMedia, setPreserveMedia] = useState(true); // keep media by default (reclaimed by 3-month retention)
-  // null = inherit the org's link-tracking setting; true/false force it for this post.
-  const [linkTrackingOverride, setLinkTrackingOverride] = useState<boolean | null>(null);
-  const [linkSettings, setLinkSettings] = useState<{
-    linkTrackingEnabled: boolean;
-    available: boolean;
-    shortUrlLength: number;
-  } | null>(null);
   const [platformContent, setPlatformContent] = useState<Record<string, string>>({});
   const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
   const [selectedFormat, setSelectedFormat] = useState('post');
@@ -388,15 +381,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
 
   // Edit / repost: preload from existing post
   const [loadingPost, setLoadingPost] = useState(false);
-  // Org link-tracking defaults, so the composer can show what will actually
-  // happen to this post's links rather than just an abstract toggle.
-  useEffect(() => {
-    fetch('/api/organizations/link-tracking')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setLinkSettings(d))
-      .catch(() => { /* feature just stays hidden */ });
-  }, []);
-
   const [editPostId, setEditPostId] = useState<number | null>(null);
   useEffect(() => {
     let postId: string | null = null;
@@ -487,12 +471,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
         // Two-way load: a post saved with delete-after-publish ON must clear the
         // default-on "preserve" toggle, else editing silently flips it back to keep.
         setPreserveMedia(post.deleteMediaAfterPublish !== true);
-        // undefined (older payloads) and null both mean "inherit".
-        setLinkTrackingOverride(
-          post.linkTrackingOverride === true || post.linkTrackingOverride === false
-            ? post.linkTrackingOverride
-            : null,
-        );
         if (post.scheduledAt) {
           setScheduledAt(post.scheduledAt);
           setShowSchedule(true);
@@ -503,29 +481,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
           setEditApproval({ status: post.approvalStatus, reason: post.rejectionReason ?? null });
         }
 
-      })
-      .catch(() => { /* ignore */ })
-      .finally(() => setLoadingPost(false));
-  }, []);
-
-  // Prefill from a collected item (?collect=<id>, admin-only Collect feature).
-  // Nothing is saved until the user acts — this only seeds the textarea.
-  useEffect(() => {
-    let collectId: string | null = null;
-    try {
-      collectId = new URLSearchParams(window.location.search).get('collect');
-    } catch { /* ignore */ }
-    if (!collectId) return;
-
-    setLoadingPost(true);
-    fetch(`/api/admin/collect/${collectId}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((item) => {
-        if (!item) return;
-        // Full extracted article text (not just the excerpt) — the point is to
-        // rework the source material into a post, so bring all of it along.
-        const parts = [item.title, item.contentText || item.excerpt, item.url].filter(Boolean);
-        if (parts.length > 0) setContent(parts.join('\n\n'));
       })
       .catch(() => { /* ignore */ })
       .finally(() => setLoadingPost(false));
@@ -923,11 +878,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
     return threadParts.some((p) => extractFirstUrl(p.content || ''));
   }, [textareaValue, threadParts]);
 
-  // What will actually happen on publish: the post's own choice wins, else the
-  // org default. Mirrors resolveLinkTracking() on the server.
-  const effectiveLinkTracking =
-    linkTrackingOverride ?? linkSettings?.linkTrackingEnabled ?? false;
-
   // Clear activeChannelId if that channel is deselected
   useEffect(() => {
     if (activeChannelId && !selectedChannels.some((c) => c.channelId === activeChannelId)) {
@@ -1063,10 +1013,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
         autoRepostEnabled: autoRepostEnabled || undefined,
         autoRepostThreshold: autoRepostEnabled ? autoRepostThreshold : undefined,
         deleteMediaAfterPublish: !preserveMedia,
-        // null is meaningful here (inherit the org default), so it must be sent
-        // as null rather than omitted — omitting it would leave a previous
-        // explicit choice in place when the user switches back to Default.
-        linkTrackingOverride,
         requestApproval: requestApproval || undefined,
       };
 
@@ -1210,10 +1156,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
         autoRepostEnabled: autoRepostEnabled || undefined,
         autoRepostThreshold: autoRepostEnabled ? autoRepostThreshold : undefined,
         deleteMediaAfterPublish: !preserveMedia,
-        // null is meaningful here (inherit the org default), so it must be sent
-        // as null rather than omitted — omitting it would leave a previous
-        // explicit choice in place when the user switches back to Default.
-        linkTrackingOverride,
       };
 
       const res = await fetch(isEditing ? `/api/posts/${editPostId}` : '/api/posts', {
@@ -1484,37 +1426,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
                 />
                 <p style={{ fontSize: '11px', color: 'var(--stone-400)', margin: '4px 0 0', lineHeight: 1.4 }}>
                   Supported on Instagram, Facebook, X, LinkedIn, Threads, Bluesky, YouTube, and Mastodon.
-                </p>
-              </div>
-            )}
-
-            {/* Link tracking — per-post override of the org setting. Only shown
-                when the post actually contains a link, so it stays out of the
-                way of the majority of posts that have nothing to shorten. */}
-            {linkSettings?.available && hasLinkInContent && (
-              <div style={{ padding: '0 20px', marginTop: '12px' }}>
-                <label style={{ fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--stone-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Link Tracking
-                </label>
-                <select
-                  className="input"
-                  value={linkTrackingOverride === null ? 'default' : linkTrackingOverride ? 'on' : 'off'}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setLinkTrackingOverride(v === 'default' ? null : v === 'on');
-                  }}
-                  style={{ fontSize: 'var(--text-sm)', marginTop: '4px' }}
-                >
-                  <option value="default">
-                    Default ({linkSettings.linkTrackingEnabled ? 'tracked' : 'not tracked'})
-                  </option>
-                  <option value="on">Track links in this post</option>
-                  <option value="off">Don&apos;t track links in this post</option>
-                </select>
-                <p style={{ fontSize: '11px', color: 'var(--stone-400)', margin: '4px 0 0', lineHeight: 1.4 }}>
-                  {effectiveLinkTracking
-                    ? `Links will be replaced with ${linkSettings.shortUrlLength}-character shortened links when this post publishes, so clicks can be counted.`
-                    : 'Links will publish exactly as written. Clicks on them can’t be measured.'}
                 </p>
               </div>
             )}

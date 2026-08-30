@@ -360,9 +360,6 @@ export function ChannelList({
   const { data: _channelData, error: _channelError, isLoading: loading, mutate: mutateChannels } = useApi<Channel[] | { channels?: Channel[] }>('/api/channels');
   const channels = Array.isArray(_channelData) ? _channelData : _channelData?.channels ?? [];
   const error = _channelError?.message ?? null;
-  const { data: _usageData } = useApi<{ plan?: string }>('/api/quotas/usage');
-  const userPlan = _usageData?.plan ?? null;
-
   // Connection state
   const [connectingPlatform, setConnectingPlatform] = useState<Platform | null>(null);
   const [connectLoading, setConnectLoading] = useState(false);
@@ -1071,11 +1068,10 @@ export function ChannelList({
             (ch) => ch.needsReconnect || ch.tokenStatus === 'expired',
           );
           const isSoon = !!platform.comingSoon && !hasAccounts;
-          const isExcluded = platform.key === 'x' && userPlan === 'free';
           // Availability flags: `connect_off` blocks new connections but leaves
           // existing channels working; `off` also halts publishing (posts held).
           const avail = availabilityFor(platform.key);
-          const connectPaused = !avail.canConnect && !isExcluded && !isSoon;
+          const connectPaused = !avail.canConnect && !isSoon;
           const publishHalted = !avail.canPublish;
 
           // When company pages can't be connected, the card simply describes
@@ -1088,32 +1084,19 @@ export function ChannelList({
               : platform.description;
 
           return (
-            <div key={platform.key} style={{ ...styles.card, ...(isSoon ? styles.cardComingSoon : {}), ...(isExcluded ? styles.cardExcluded : {}) }}>
+            <div key={platform.key} style={{ ...styles.card, ...(isSoon ? styles.cardComingSoon : {}) }}>
               {/* Card header: icon + name + action */}
               <div style={styles.cardHeader}>
-                <div style={isSoon || isExcluded ? { opacity: 0.4, filter: 'grayscale(1)' } : undefined}>
+                <div style={isSoon ? { opacity: 0.4, filter: 'grayscale(1)' } : undefined}>
                   <PlatformIcon platform={platform.key} size="lg" />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <h4 style={{ ...styles.platformName, ...(isSoon || isExcluded ? { color: 'var(--stone-400)' } : {}) }}>{platform.name}</h4>
+                  <h4 style={{ ...styles.platformName, ...(isSoon ? { color: 'var(--stone-400)' } : {}) }}>{platform.name}</h4>
                   <p style={styles.platformDesc}>
-                    {isExcluded ? 'Requires Pro plan' : description}
+                    {description}
                   </p>
                 </div>
-                {isExcluded ? (
-                  <a
-                    href="/pricing"
-                    style={{
-                      ...styles.connectBtn,
-                      background: 'var(--stone-200)',
-                      color: 'var(--stone-600)',
-                      textDecoration: 'none',
-                      pointerEvents: 'auto' as const,
-                    }}
-                  >
-                    Upgrade
-                  </a>
-                ) : isSoon ? (
+                {isSoon ? (
                   <span style={styles.comingSoonBadge}>Coming soon</span>
                 ) : publishHalted && hasAccounts ? (
                   <span style={{ ...styles.connectedBadge, color: 'var(--color-warning)', background: 'var(--color-warning-bg)' }}>
@@ -1165,7 +1148,7 @@ export function ChannelList({
                   Hidden entirely when pages can't be connected — the card header
                   reads "Personal profiles" instead, with no explanation of what's
                   missing (see `description` above). */}
-              {platform.key === 'linkedin' && !hasAccounts && !isExcluded && !isSoon && !connectPaused && liPagesAvail.canConnect && (
+              {platform.key === 'linkedin' && !hasAccounts && !isSoon && !connectPaused && liPagesAvail.canConnect && (
                 <button
                   onClick={connectLinkedInPage}
                   disabled={connectLoading}

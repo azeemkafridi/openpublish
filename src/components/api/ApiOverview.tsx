@@ -6,26 +6,6 @@ import { PostsBarChart } from '../analytics/PostsBarChart';
 import type { CSSProperties, ReactNode } from 'react';
 import type { PlatformName } from '@lib/platforms/types';
 
-interface QuotaData {
-  plan: string;
-  limits: {
-    channels: number;
-    postsPerDay: number;
-    postsPerMonth: number;
-    maxPendingScheduled: number;
-    mediaStorageMB: number;
-    apiKeys: number;
-    recurringSchedules: number;
-    maxLabels: number;
-  };
-  usage: {
-    apiKeys: number;
-    postsToday: number;
-    postsThisMonth: number;
-    channels: number;
-  };
-}
-
 interface ApiKey {
   id: string;
   isActive: boolean;
@@ -359,9 +339,6 @@ export function ApiLimits() {
             <div style={s.limitRow}><span>API endpoints</span><span style={s.limitValue}>60 req/min</span></div>
             <div style={s.limitRow}><span>Media uploads</span><span style={s.limitValue}>100 MB/file · videos up to 1 GB (multipart)</span></div>
           </div>
-        </div>
-        <div style={{ fontSize: '12px', color: '#A8A29E', padding: '4px 0' }}>
-          Plan quotas (posts, channels, storage) are on the <a href="/settings" style={{ color: 'var(--accent-500)', textDecoration: 'none', fontWeight: 500 }}>Plan &amp; Usage</a> page.
         </div>
         <div>
           <h3 style={s.subheading}>Character Limits per Platform</h3>

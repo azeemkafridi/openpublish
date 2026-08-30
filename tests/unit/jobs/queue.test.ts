@@ -7,7 +7,7 @@
  *   - addStatusCheckJob adds job with delay and retry config
  *   - addMediaCleanupJob adds job with 60s delay
  *   - addNotificationJob adds job with correct payload
- *   - addWebhookDeliveryJob adds job with exponential backoff
+ *   - adds job with exponential backoff
  *   - addMetricsSyncJob routes to correct job name based on organizationId
  *   - getQueue creates and caches queues
  */
@@ -68,7 +68,6 @@ const {
   addStatusCheckJob,
   addMediaCleanupJob,
   addNotificationJob,
-  addWebhookDeliveryJob,
   addMetricsSyncJob,
   addEngagementCheckJobs,
   removeRemainingEngagementChecks,
@@ -87,7 +86,6 @@ describe('QUEUE_NAMES', () => {
     expect(QUEUE_NAMES.TOKEN_REFRESH).toBe('token-refresh');
     expect(QUEUE_NAMES.MEDIA_CLEANUP).toBe('media-cleanup');
     expect(QUEUE_NAMES.NOTIFICATION).toBe('notification');
-    expect(QUEUE_NAMES.WEBHOOK).toBe('webhook-deliver');
     expect(QUEUE_NAMES.RETENTION).toBe('retention');
     expect(QUEUE_NAMES.METRICS_SYNC).toBe('metrics-sync');
     expect(QUEUE_NAMES.ENGAGEMENT_CHECK).toBe('engagement-check');
@@ -226,25 +224,6 @@ describe('addNotificationJob', () => {
     const payload = mockQueueAdd.mock.calls[0][1];
     expect(payload.data).toBeUndefined();
     expect(payload.organizationId).toBeUndefined();
-  });
-});
-
-describe('addWebhookDeliveryJob', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('adds a deliver-webhook job with exponential backoff', async () => {
-    await addWebhookDeliveryJob(1, 'https://example.com/hook', '{"a":1}', 'sig-abc');
-
-    expect(mockQueueAdd).toHaveBeenCalledWith(
-      'deliver-webhook',
-      { webhookId: 1, url: 'https://example.com/hook', body: '{"a":1}', signature: 'sig-abc' },
-      expect.objectContaining({
-        attempts: 5,
-        backoff: { type: 'exponential', delay: 10000 },
-      }),
-    );
   });
 });
 

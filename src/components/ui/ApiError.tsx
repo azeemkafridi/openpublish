@@ -37,13 +37,12 @@ export function parseApiError(body: unknown, fallback: string): ApiErrorData {
 
 /**
  * Display an API error with proper context, reasoning, and upgrade CTA.
- * Renders as a single red paragraph with an optional upgrade link.
+ * Renders as a single red paragraph.
  */
 export function ApiError({ error, style }: { error: ApiErrorData | string | null; style?: CSSProperties }) {
   if (!error) return null;
 
   const data: ApiErrorData = typeof error === 'string' ? { message: error } : error;
-  const isUpgrade = data.upgrade || data.code === 'QUOTA_EXCEEDED' || data.code === 'FEATURE_DISABLED';
 
   return (
     <p
@@ -55,36 +54,6 @@ export function ApiError({ error, style }: { error: ApiErrorData | string | null
       }}
     >
       {data.message}{data.hint ? ` ${data.hint}` : ''}
-      {data.addon === 'channel_slot' && (
-        <>
-          {' '}
-          <a
-            href="/settings#channel-slots"
-            style={{
-              color: 'var(--accent-500)',
-              fontWeight: 600,
-              textDecoration: 'none',
-            }}
-          >
-            Add a slot &rarr;
-          </a>
-        </>
-      )}
-      {isUpgrade && (
-        <>
-          {' '}
-          <a
-            href="/pricing"
-            style={{
-              color: 'var(--accent-500)',
-              fontWeight: 600,
-              textDecoration: 'none',
-            }}
-          >
-            View plans &rarr;
-          </a>
-        </>
-      )}
     </p>
   );
 }

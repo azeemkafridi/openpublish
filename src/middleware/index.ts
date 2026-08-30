@@ -188,7 +188,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
 
     // Skip auth for public paths
-    if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p))) {
+    if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p.endsWith('/') ? p : p + '/'))) {
       const response = await next();
       const finalResponse = await finalizeResponse(response);
       logRequest(shouldLog, { method, path: pathname, status: response.status, duration: Date.now() - start, ip, type: 'public' });
@@ -218,15 +218,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
         return response;
       }
 
-      // Admin guard for /api/admin/* routes
-      if (pathname.startsWith('/api/admin/') && authContext.role !== 'admin') {
-        const response = new Response(
-          JSON.stringify({ error: { message: 'Forbidden', code: 'FORBIDDEN' } }),
-          { status: 403, headers: { 'Content-Type': 'application/json' } },
-        );
-        logRequest(shouldLog, { method, path: pathname, status: 403, duration: Date.now() - start, ip, type: 'api', userId: authContext.userId });
-        return response;
-      }
 
       // Rate limit API routes by user (per-minute burst limit)
       const isWrite = method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH';

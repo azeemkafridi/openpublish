@@ -2430,6 +2430,50 @@
             "apiKey": []
           }
         ]
+      },
+      "patch": {
+        "operationId": "patchChannel",
+        "summary": "Update per-channel settings",
+        "description": "Currently supports one field: `metricsSyncEnabled`, the per-channel opt-in for X (Twitter) metrics sync \u2014 X charges per read, so analytics sync is off by default and throttled to once per 7 days when enabled.",
+        "tags": [
+          "Channels"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "metricsSyncEnabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated channel"
+          },
+          "400": {
+            "description": "No supported fields to update"
+          },
+          "404": {
+            "description": "Channel not found"
+          }
+        }
       }
     },
     "/api/channels/{id}/health": {
