@@ -18,10 +18,16 @@ export const GET: APIRoute = async ({ locals, url }) => {
   const offset = (page - 1) * limit;
   const search = url.searchParams.get('search')?.trim();
   const labelIdsParam = url.searchParams.get('labelIds');
+  const typeParam = url.searchParams.get('type');
 
   const conditions = [eq(mediaFiles.organizationId, locals.auth.organizationId)];
   if (search) {
     conditions.push(ilike(mediaFiles.fileName, `%${search}%`));
+  }
+  // Server-side image/video filter — clients used to filter the current page
+  // client-side, which silently missed everything beyond it.
+  if (typeParam === 'image' || typeParam === 'video') {
+    conditions.push(ilike(mediaFiles.mimeType, `${typeParam}/%`));
   }
 
   // Filter by labels if provided
@@ -35,7 +41,7 @@ export const GET: APIRoute = async ({ locals, url }) => {
         .from(labels)
         .where(and(inArray(labels.id, labelIds), eq(labels.organizationId, locals.auth.organizationId)));
       if (ownedLabels.length !== labelIds.length) {
-        return json({ files: [], page, limit }, 200, { 'Cache-Control': 'private, no-store' });
+        return json({ files: [], page, limit, total: 0 }, 200, { 'Cache-Control': 'private, no-store' });
       }
 
       const mediaWithLabels = await db
@@ -44,7 +50,7 @@ export const GET: APIRoute = async ({ locals, url }) => {
         .where(inArray(mediaLabels.labelId, labelIds));
       filteredMediaIds = mediaWithLabels.map((r) => r.mediaFileId);
       if (filteredMediaIds.length === 0) {
-        return json({ files: [], page, limit }, 200, { 'Cache-Control': 'private, no-store' });
+        return json({ files: [], page, limit, total: 0 }, 200, { 'Cache-Control': 'private, no-store' });
       }
       conditions.push(inArray(mediaFiles.id, filteredMediaIds));
     }
@@ -54,9 +60,17 @@ export const GET: APIRoute = async ({ locals, url }) => {
     .select()
     .from(mediaFiles)
     .where(and(...conditions))
-    .orderBy(desc(mediaFiles.createdAt))
+    .orderBy(desc(mediaFiles.createdAt), desc(mediaFiles.id))
     .limit(limit)
     .offset(offset);
+
+  // Total across ALL pages for the same filters — without it every client
+  // showed the page size (capped at 100) as the library's size.
+  const countRows = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(mediaFiles)
+    .where(and(...conditions));
+  const total = countRows[0]?.total ?? 0;
 
   // Fetch labels for all returned media files
   const mediaIds = rows.map((r) => r.id);
@@ -101,6 +115,7 @@ export const GET: APIRoute = async ({ locals, url }) => {
     files,
     page,
     limit,
+    total,
   }, 200, { 'Cache-Control': 'private, no-store' });
 };
 

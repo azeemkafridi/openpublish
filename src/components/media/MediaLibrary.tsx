@@ -67,7 +67,7 @@ const FILTER_CHIPS: Array<{ label: string; value: FilterType }> = [
 ];
 
 export default function MediaLibrary() {
-  const [filter, setFilter] = useQueryState<FilterType>('type', 'all');
+  const [filter, setFilterParam] = useQueryState<FilterType>('type', 'all');
   const [deleteTarget, setDeleteTarget] = useState<MediaItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [uploads, setUploads] = useState<UploadProgress[]>([]);
@@ -93,15 +93,38 @@ export default function MediaLibrary() {
     };
   }, [search]);
 
+  // Server-driven pagination. The API caps limit at 100, so the library used
+  // to show at most 100 files (and a count stuck at 100) no matter how many
+  // exist — pages accumulate here and `total` comes from the API.
+  const [pageNum, setPageNum] = useState(1);
+  const [loadedPages, setLoadedPages] = useState<Map<number, MediaItem[]>>(new Map());
+
   const _mediaParams = new URLSearchParams();
   _mediaParams.set('limit', '100');
+  _mediaParams.set('page', String(pageNum));
   if (debouncedSearch) _mediaParams.set('search', debouncedSearch);
   if (selectedLabelIds.length > 0) _mediaParams.set('labelIds', selectedLabelIds.join(','));
+  // Type filtering is server-side — client-side filtering only covered the
+  // fetched page, silently hiding matches beyond it.
+  if (filter !== 'all') _mediaParams.set('type', filter);
   const { data: _rawMedia, error: _mediaErr, isLoading: loading, mutate: mutateMedia } = useApi<any>(
     `/api/media?${_mediaParams}`,
   );
+  const total: number | null = typeof _rawMedia?.total === 'number' ? _rawMedia.total : null;
   const [actionError, setActionError] = useState<string | null>(null);
   const error = actionError ?? _mediaErr?.message ?? null;
+
+  // Any filter change restarts the listing from page 1.
+  const filterKey = `${debouncedSearch}|${selectedLabelIds.join(',')}|${filter}`;
+  useEffect(() => {
+    setPageNum(1);
+    setLoadedPages(new Map());
+  }, [filterKey]);
+
+  function setFilter(next: FilterType) {
+    setFilterParam(next);
+  }
+
   const media: MediaItem[] = useMemo(() => {
     if (!_rawMedia) return [];
     const rawList = Array.isArray(_rawMedia) ? _rawMedia : Array.isArray(_rawMedia?.files) ? _rawMedia.files : Array.isArray(_rawMedia?.media) ? _rawMedia.media : [];
@@ -122,9 +145,30 @@ export default function MediaLibrary() {
     }));
   }, [_rawMedia]);
 
-  const filteredMedia = filter === 'all'
-    ? media
-    : media.filter((m) => m.type === filter);
+  // Stash the fetched page, then flatten every loaded page in order.
+  useEffect(() => {
+    if (!_rawMedia) return;
+    setLoadedPages((prev) => {
+      const next = new Map(prev);
+      next.set(pageNum, media);
+      return next;
+    });
+  }, [_rawMedia]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filteredMedia = useMemo(() => {
+    const seen = new Set<string>();
+    const out: MediaItem[] = [];
+    for (const key of [...loadedPages.keys()].sort((a, b) => a - b)) {
+      for (const item of loadedPages.get(key)!) {
+        if (!seen.has(item.id)) {
+          seen.add(item.id);
+          out.push(item);
+        }
+      }
+    }
+    return out;
+  }, [loadedPages]);
+  const hasMore = total !== null && filteredMedia.length < total;
 
   async function handleUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -149,6 +193,8 @@ export default function MediaLibrary() {
       }),
     );
 
+    setPageNum(1);
+    setLoadedPages(new Map());
     mutateMedia(undefined, { revalidate: true });
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -165,6 +211,8 @@ export default function MediaLibrary() {
       const res = await fetch(`/api/media/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
       if (!res.ok) throw new Error('Failed to delete media');
       setDeleteTarget(null);
+      setPageNum(1);
+      setLoadedPages(new Map());
       mutateMedia(undefined, { revalidate: true });
     } catch (err: any) {
       setActionError(err.message ?? 'Failed to delete');
@@ -404,9 +452,7 @@ export default function MediaLibrary() {
                 onClick={() => setFilter(chip.value)}
               >
                 {chip.label}
-                {chip.value === 'all' && ` (${media.length})`}
-                {chip.value === 'image' && ` (${media.filter((m) => m.type === 'image').length})`}
-                {chip.value === 'video' && ` (${media.filter((m) => m.type === 'video').length})`}
+                {filter === chip.value && total !== null && ` (${total})`}
               </button>
             ))}
           </div>
@@ -683,6 +729,20 @@ export default function MediaLibrary() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Load more — the API pages at 100; total is the real library size */}
+      {hasMore && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={loading}
+            onClick={() => setPageNum((p) => p + 1)}
+          >
+            Load more ({filteredMedia.length} of {total})
+          </Button>
         </div>
       )}
 
