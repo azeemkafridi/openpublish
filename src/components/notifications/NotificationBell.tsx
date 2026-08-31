@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { PlatformIcon } from '@/components/channels/PlatformIcon';
 import { PlatformBadge } from '@/components/channels/PlatformBadge';
+import { NotificationActions } from './NotificationActions';
 import { useApi } from '@lib/swr';
 
 /* ------------------------------------------------------------------ */
@@ -20,6 +21,7 @@ interface Notification {
   id: string;
   title: string;
   message: string;
+  rawType?: string;
   type: 'success' | 'error' | 'info' | 'warning';
   read: boolean;
   createdAt: string;
@@ -182,7 +184,7 @@ export default function NotificationBell() {
   const notifications: Notification[] = useMemo(() => {
     if (!_rawNotifs) return [];
     const list = Array.isArray(_rawNotifs) ? _rawNotifs : _rawNotifs.notifications ?? [];
-    return list.map((n: any) => ({ ...n, type: mapNotificationType(n.type), read: n.read ?? n.isRead ?? false }));
+    return list.map((n: any) => ({ ...n, rawType: n.type, type: mapNotificationType(n.type), read: n.read ?? n.isRead ?? false }));
   }, [_rawNotifs]);
 
   // Server-side total, not a count of the 10 rows we fetched.
@@ -193,6 +195,9 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
+      // Presses inside a portaled dialog (e.g. the republish confirm) are not
+      // "outside" — closing here would unmount the dialog mid-interaction.
+      if ((e.target as Element).closest?.('[role="dialog"]')) return;
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
@@ -380,12 +385,14 @@ export default function NotificationBell() {
                     </div>
                   </div>
                   {/* Actions menu */}
-                  <NotifPopoverMenu
+                  <NotificationActions
                     notifId={String(notif.id)}
-                    hasRetry={notif.type === 'error' && !!notif.data?.postId}
-                    postId={notif.data?.postId}
+                    rawType={notif.rawType}
+                    uiType={notif.type}
+                    data={notif.data}
+                    compact
                     onDelete={handleDelete}
-                    onClose={() => setOpen(false)}
+                    onBeforeNavigate={() => setOpen(false)}
                   />
                 </button>
               ))
@@ -416,75 +423,6 @@ export default function NotificationBell() {
 
 /* ------------------------------------------------------------------ */
 /*  Popover action menu                                                */
-/* ------------------------------------------------------------------ */
-
-function NotifPopoverMenu({ notifId, hasRetry, postId, onDelete, onClose }: {
-  notifId: string;
-  hasRetry: boolean;
-  postId?: number;
-  onDelete: (id: string) => void;
-  onClose: () => void;
-}) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [menuOpen]);
-
-  return (
-    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
-      <span
-        role="button"
-        onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
-        style={{ padding: '4px', color: 'var(--stone-400)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-        title="Actions"
-      >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-          <circle cx="8" cy="3" r="1.5" />
-          <circle cx="8" cy="8" r="1.5" />
-          <circle cx="8" cy="13" r="1.5" />
-        </svg>
-      </span>
-      {menuOpen && (
-        <div style={{
-          position: 'absolute', top: '100%', right: 0, marginTop: '6px',
-          background: 'var(--surface-main, #fff)', border: '1px solid var(--stone-200)',
-          borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-xl)',
-          zIndex: 'var(--z-dropdown)' as any, minWidth: '150px', overflow: 'hidden',
-          animation: 'fadeInUp 160ms ease both',
-        }}>
-          {hasRetry && postId && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onClose(); window.location.href = `/compose?repost=${postId}`; }}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--stone-700)', textAlign: 'left' }}
-              onMouseOver={(e) => (e.currentTarget.style.background = 'var(--stone-50)')}
-              onMouseOut={(e) => (e.currentTarget.style.background = 'none')}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" /></svg>
-              Retry
-            </button>
-          )}
-          <button
-            onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(notifId); }}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 'var(--text-xs)', fontWeight: 500, color: '#EF4444', textAlign: 'left' }}
-            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--stone-50)')}
-            onMouseOut={(e) => (e.currentTarget.style.background = 'none')}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-            Delete
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ------------------------------------------------------------------ */
 /*  Styles                                                             */
 /* ------------------------------------------------------------------ */

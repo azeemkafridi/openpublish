@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } fro
 import { useApi } from '@lib/swr';
 import { Spinner } from '@components/ui/Spinner';
 import { Dialog } from '@components/ui/Dialog';
+import { ConfirmDialog } from '@components/ui/ConfirmDialog';
 import { Button } from '@components/ui/Button';
 import { ApiError, parseApiError, type ApiErrorData } from '@components/ui/ApiError';
 import { ChannelSelector, type SelectedChannel } from './ChannelSelector';
@@ -10,12 +11,12 @@ import { SchedulePicker } from './SchedulePicker';
 import { LabelDropdown } from '../labels/LabelDropdown';
 import { PlatformOptions, validatePlatformOptions, tiktokDisclosureIncomplete, type PlatformSpecific } from './PlatformOptions';
 import { PostFormatBar, POST_FORMATS } from './PostFormatBar';
-import { PLATFORM_DEFAULTS, PLATFORM_POST_TYPES } from './PostTypeSelector';
+import { PLATFORM_DEFAULTS, PLATFORM_POST_TYPES, PostTypeSummary, getMediaWarning } from './PostTypeSelector';
 import { ThreadEditor, getThreadCharLimit } from './ThreadEditor';
 import type { ThreadPart } from '@lib/db/schema';
 import type { Platform, LinkPreviewData } from './PostPreview';
 import { extractFirstUrl, platformLength } from '@lib/url';
-import { PLATFORM_CHAR_LIMITS } from '@lib/platforms/validation';
+import { PLATFORM_CHAR_LIMITS, validatePostTypeOverridesShape } from '@lib/platforms/validation';
 import { platformDisplayName, ALL_PLATFORMS } from '@lib/platforms/types';
 import { can } from '@lib/team/permissions';
 import { track } from '@lib/track';
@@ -316,6 +317,7 @@ export default function Composer({ automationMode: automationModeProp, userRole 
   const [selectedChannels, setSelectedChannels] = useState<SelectedChannel[]>([]);
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [scheduledAt, setScheduledAt] = useState<string | null>(null);
+  const [confirmScheduleClear, setConfirmScheduleClear] = useState(false);
   const [timezone, setTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   );
@@ -425,6 +427,12 @@ export default function Composer({ automationMode: automationModeProp, userRole 
           setFullChannels(loadedChannels);
         }
         if (post.postFormat) setSelectedFormat(post.postFormat);
+        // Restore saved per-platform post types — without this, saving an edit
+        // sends resolvedPostTypes built from format defaults and silently
+        // reverts overrides like LinkedIn's PDF Carousel.
+        if (post.postTypeOverrides && Object.keys(post.postTypeOverrides).length > 0) {
+          setPlatformPostTypeOverrides(post.postTypeOverrides);
+        }
         if (post.postFormat === 'thread' && post.threadParts && Array.isArray(post.threadParts) && post.threadParts.length >= 2) {
           setThreadParts(post.threadParts);
           // Resolve thread part media files from post.mediaFiles for display
@@ -660,6 +668,9 @@ export default function Composer({ automationMode: automationModeProp, userRole 
         { content: '', mediaFileIds: [] },
       ]);
     }
+    // Overrides are per-format choices; carrying them across formats silently
+    // publishes a stale post type (e.g. a PDF Carousel override under "Post").
+    setPlatformPostTypeOverrides({});
     setSelectedFormat(newFormat);
   }, [selectedFormat, content, threadParts]);
 
@@ -700,10 +711,18 @@ export default function Composer({ automationMode: automationModeProp, userRole 
     // Merge into fullChannels: add new ones, remove deselected ones
     setFullChannels((prev) => {
       const newIds = new Set(channels.map((c) => c.channelId));
-      const prevIds = new Set(prev.map((c) => c.channelId));
-      // Keep prev channels not in the currently visible set (they're hidden by format)
-      // plus all channels from the new selection
-      const hidden = prev.filter((c) => !selectedChannels.some((s) => s.channelId === c.channelId));
+      // Keep only prev channels the current format actually hides (the user
+      // could not have deselected those) plus all channels from the new
+      // selection. Keying off "not currently visible" instead resurrected
+      // manually deselected channels on the next format change. With an
+      // unknown format nothing is format-hidden.
+      const hidden = activeFormat
+        ? prev.filter(
+            (c) =>
+              !activeFormat.supportedPlatforms.includes(c.platform) &&
+              !newIds.has(c.channelId),
+          )
+        : [];
       const merged = [...hidden, ...channels];
       // Deduplicate by channelId
       const seen = new Set<number>();
@@ -713,7 +732,7 @@ export default function Composer({ automationMode: automationModeProp, userRole 
         return true;
       });
     });
-  }, [selectedChannels]);
+  }, [activeFormat]);
 
   useEffect(() => {
     if (!activeFormat) return;
@@ -782,7 +801,6 @@ export default function Composer({ automationMode: automationModeProp, userRole 
   /* ---- Per-channel validation warnings ---- */
   const channelWarnings = useMemo(() => {
     const map = new Map<number, string[]>();
-    if (isThreadFormat) return map;
     const fmt = POST_FORMATS.find((f) => f.value === selectedFormat);
     if (!fmt) return map;
 
@@ -791,41 +809,33 @@ export default function Composer({ automationMode: automationModeProp, userRole 
       const platform = sel.platform;
       const label = platformDisplayName(platform);
 
-      // Char limit
-      const limit = CHAR_LIMITS[platform];
-      const text = platformContent[platform]?.length > 0 ? platformContent[platform] : content;
-      const textLength = platformLength(text, platform);
-      if (limit && textLength > limit) {
-        warnings.push(`Exceeds ${label}'s ${limit} char limit (${textLength} chars)`);
+      // Char limit. Thread parts have their own per-part counters in the
+      // ThreadEditor, so the whole-content check only applies off-thread.
+      if (!isThreadFormat) {
+        const limit = CHAR_LIMITS[platform];
+        const text = platformContent[platform]?.length > 0 ? platformContent[platform] : content;
+        const textLength = platformLength(text, platform);
+        if (limit && textLength > limit) {
+          warnings.push(`Exceeds ${label}'s ${limit} char limit (${textLength} chars)`);
+        }
       }
 
-      // Media checks via PostTypeOption
-      const ptKey = fmt.platformPostTypes[platform as keyof typeof fmt.platformPostTypes];
-      const options = PLATFORM_POST_TYPES[platform as keyof typeof PLATFORM_POST_TYPES];
-      const pt = options?.find((o) => o.value === ptKey);
-      if (pt && mediaFiles.length > 0) {
-        if (pt.maxMedia !== undefined && mediaFiles.length > pt.maxMedia) {
-          if (pt.maxMedia === 0) warnings.push(`${label} ${pt.label} doesn't support media`);
-          else warnings.push(`${label} supports up to ${pt.maxMedia} files, but ${mediaFiles.length} are attached`);
-        }
-        if (pt.minMedia && mediaFiles.length < pt.minMedia) {
-          warnings.push(`${label} requires at least ${pt.minMedia} files`);
-        }
-        if (pt.allowedMediaTypes) {
-          const hasImg = mediaFiles.some((f) => f.mimeType?.startsWith('image'));
-          const hasVid = mediaFiles.some((f) => f.mimeType?.startsWith('video'));
-          if (hasImg && !pt.allowedMediaTypes.includes('image')) warnings.push(`${label} ${pt.label} doesn't support images`);
-          if (hasVid && !pt.allowedMediaTypes.includes('video')) warnings.push(`${label} ${pt.label} doesn't support videos`);
-        }
-      }
-      if (pt?.mediaRequired && mediaFiles.length === 0) {
-        warnings.push(`${label} ${pt.label} requires media`);
+      // Media checks — must use the RESOLVED type so a per-platform override
+      // (e.g. LinkedIn PDF Carousel) is validated as what will actually
+      // publish, not the format's default. getMediaWarning is the single
+      // source for these rules (also used by PostTypeSummary and submit).
+      if (!isThreadFormat) {
+        const ptKey = resolvedPostTypes[platform];
+        const options = PLATFORM_POST_TYPES[platform as keyof typeof PLATFORM_POST_TYPES];
+        const pt = options?.find((o) => o.value === ptKey);
+        const mediaMsg = getMediaWarning(pt, mediaFiles);
+        if (mediaMsg) warnings.push(`${label}: ${mediaMsg}`);
       }
 
       if (warnings.length > 0) map.set(sel.channelId, warnings);
     }
     return map;
-  }, [selectedFormat, selectedChannels, content, platformContent, mediaFiles, isThreadFormat]);
+  }, [selectedFormat, selectedChannels, content, platformContent, mediaFiles, isThreadFormat, resolvedPostTypes]);
 
   // Per-platform thread parts: which parts to show in ThreadEditor
   const activeThreadParts = activePlatform
@@ -957,6 +967,22 @@ export default function Composer({ automationMode: automationModeProp, userRole 
       errors.push(`This format requires media. Please upload ${mediaLimits.allowedTypes.join(' or ')}.`);
     }
     errors.push(...validatePlatformOptions(selectedChannels, platformSpecific, resolvedPostTypes, { content: platformContent.tiktok?.trim() ? platformContent.tiktok : content, videoDurationSec }));
+
+    // Block resolved post types the server would reject or the platform
+    // can't publish with the attached media (e.g. a Reel with no video).
+    const shapeError = validatePostTypeOverridesShape(resolvedPostTypes);
+    if (shapeError) errors.push(shapeError);
+    if (!isThreadFormat) {
+      for (const platform of new Set(selectedChannels.map((c) => c.platform))) {
+        const pt = PLATFORM_POST_TYPES[platform as keyof typeof PLATFORM_POST_TYPES]
+          ?.find((o) => o.value === resolvedPostTypes[platform]);
+        if (!pt) continue;
+        const mediaMsg = getMediaWarning(pt, mediaFiles);
+        if (mediaMsg) {
+          errors.push(`${platformDisplayName(platform)}: ${mediaMsg.replace(/\.?$/, '.')} Change ${platformDisplayName(platform)}'s post type or the attached media.`);
+        }
+      }
+    }
 
     if (errors.length > 0) {
       track('composer_validation_failed', { mode: 'queue', errors: errors.slice(0, 5) });
@@ -1105,6 +1131,22 @@ export default function Composer({ automationMode: automationModeProp, userRole 
     }
     if (status !== 'draft') {
       errors.push(...validatePlatformOptions(selectedChannels, platformSpecific, resolvedPostTypes, { content: platformContent.tiktok?.trim() ? platformContent.tiktok : content, videoDurationSec }));
+
+    // Block resolved post types the server would reject or the platform
+    // can't publish with the attached media (e.g. a Reel with no video).
+    const shapeError = validatePostTypeOverridesShape(resolvedPostTypes);
+    if (shapeError) errors.push(shapeError);
+    if (!isThreadFormat) {
+      for (const platform of new Set(selectedChannels.map((c) => c.platform))) {
+        const pt = PLATFORM_POST_TYPES[platform as keyof typeof PLATFORM_POST_TYPES]
+          ?.find((o) => o.value === resolvedPostTypes[platform]);
+        if (!pt) continue;
+        const mediaMsg = getMediaWarning(pt, mediaFiles);
+        if (mediaMsg) {
+          errors.push(`${platformDisplayName(platform)}: ${mediaMsg.replace(/\.?$/, '.')} Change ${platformDisplayName(platform)}'s post type or the attached media.`);
+        }
+      }
+    }
     }
 
     if (errors.length > 0) {
@@ -1307,6 +1349,19 @@ export default function Composer({ automationMode: automationModeProp, userRole 
                 channelWarnings={channelWarnings}
               />
             </div>
+
+            {/* Per-platform resolved post type + override picker */}
+            {!isThreadFormat && selectedChannels.length > 0 && (
+              <div style={{ padding: '12px 20px 4px' }}>
+                <PostTypeSummary
+                  platformTypes={[...new Set(selectedChannels.map((c) => c.platform))].map(
+                    (platform) => ({ platform, postType: resolvedPostTypes[platform] ?? 'default' }),
+                  )}
+                  mediaFiles={mediaFiles}
+                  onOverride={handlePostTypeOverride}
+                />
+              </div>
+            )}
 
             {/* Title field — shown for YouTube / Pinterest */}
             {hasTitlePlatform && (
@@ -1534,7 +1589,17 @@ export default function Composer({ automationMode: automationModeProp, userRole 
                   icon={icons.calendar}
                   label={automationMode ? 'Repeat' : scheduledAt ? 'Scheduled' : 'Schedule'}
                   active={showSchedule}
-                  onClick={() => setShowSchedule((v) => !v)}
+                  onClick={() => {
+                    if (!showSchedule) {
+                      setShowSchedule(true);
+                    } else if (scheduledAt) {
+                      // Closing the panel with a schedule set would leave an
+                      // invisible schedule attached to the post — confirm first.
+                      setConfirmScheduleClear(true);
+                    } else {
+                      setShowSchedule(false);
+                    }
+                  }}
                 />
                 <ToolbarButton
                   icon={icons.tag}
@@ -1740,6 +1805,25 @@ export default function Composer({ automationMode: automationModeProp, userRole 
           </Button>
         </div>
       </Dialog>
+
+      {/* Schedule clear confirmation */}
+      <ConfirmDialog
+        open={confirmScheduleClear}
+        title="Remove schedule?"
+        message={
+          isEditing
+            ? 'The scheduled date and time will be cleared. If you save, this post will no longer publish automatically.'
+            : 'The scheduled date and time will be cleared, and this post will not publish automatically.'
+        }
+        confirmLabel="Remove schedule"
+        danger
+        onConfirm={() => {
+          setScheduledAt(null);
+          setShowSchedule(false);
+          setConfirmScheduleClear(false);
+        }}
+        onCancel={() => setConfirmScheduleClear(false)}
+      />
 
       {/* Toast notifications */}
       {toast && (

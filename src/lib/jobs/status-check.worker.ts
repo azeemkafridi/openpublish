@@ -262,7 +262,7 @@ export function createStatusCheckWorker() {
           'post_failed',
           `Failed to publish to ${platformDisplayName(platform)}`,
           failureMessage,
-          { postId: pp.postId, platform, channelId },
+          { postId: pp.postId, platform, channelId, contentSnippet: (post.content || '').slice(0, 80) },
           post.organizationId,
         );
 
@@ -297,7 +297,7 @@ export function createStatusCheckWorker() {
             'post_failed',
             `Failed to publish to ${platformDisplayName(platform)}`,
             'Publishing timed out - platform did not confirm publication',
-            { postId: pp.postId, platform, channelId },
+            { postId: pp.postId, platform, channelId, contentSnippet: (post.content || '').slice(0, 80) },
             post.organizationId,
           );
 

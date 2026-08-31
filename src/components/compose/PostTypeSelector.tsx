@@ -1,4 +1,4 @@
-import type { SelectedChannel, Platform } from './ChannelSelector';
+import type { Platform } from './ChannelSelector';
 import type { MediaFile } from './MediaUploader';
 import { PlatformIcon } from '@components/channels/PlatformIcon';
 import { platformDisplayName } from '@lib/platforms/types';
@@ -7,15 +7,11 @@ import { platformDisplayName } from '@lib/platforms/types';
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export interface PostTypeOverrides {
-  [channelId: number]: string;
-}
-
-export interface PostTypeSelectorProps {
-  selectedChannels: SelectedChannel[];
-  postTypeOverrides: PostTypeOverrides;
+export interface PostTypeSummaryProps {
+  /** Unique selected platforms with their resolved post type (override → format → default). */
+  platformTypes: { platform: Platform; postType: string }[];
   mediaFiles: MediaFile[];
-  onChange: (overrides: PostTypeOverrides) => void;
+  onOverride: (platform: string, postType: string) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -177,43 +173,35 @@ export function getMediaWarning(
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
-export function PostTypeSelector({
-  selectedChannels,
-  postTypeOverrides,
+// Shows each selected platform's resolved post type (override → format →
+// default) and lets the user change it per platform, so what will actually be
+// published to each network is visible before submit.
+export function PostTypeSummary({
+  platformTypes,
   mediaFiles,
-  onChange,
-}: PostTypeSelectorProps) {
-  // Only show channels whose platform has multiple post types
-  const applicableChannels = selectedChannels.filter(
-    (ch) => {
-      const opts = PLATFORM_POST_TYPES[ch.platform];
-      return opts !== undefined && opts.length > 1;
-    },
-  );
+  onOverride,
+}: PostTypeSummaryProps) {
+  // Only platforms with more than one post type need a picker
+  const applicable = platformTypes.filter(({ platform }) => {
+    const opts = PLATFORM_POST_TYPES[platform];
+    return opts !== undefined && opts.length > 1;
+  });
 
-  if (applicableChannels.length === 0) return null;
-
-  const getTypeForChannel = (channelId: number, platform: Platform): string =>
-    postTypeOverrides[channelId] ?? PLATFORM_DEFAULTS[platform] ?? '';
-
-  const handleChange = (channelId: number, value: string) => {
-    onChange({ ...postTypeOverrides, [channelId]: value });
-  };
+  if (applicable.length === 0) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <label className="label" style={{ marginBottom: 0 }}>
         Post type
       </label>
 
-      {applicableChannels.map((ch) => {
-        const options = PLATFORM_POST_TYPES[ch.platform]!;
-        const currentValue = getTypeForChannel(ch.channelId, ch.platform);
-        const currentOption = options.find((o) => o.value === currentValue);
+      {applicable.map(({ platform, postType }) => {
+        const options = PLATFORM_POST_TYPES[platform]!;
+        const currentOption = options.find((o) => o.value === postType);
         const warning = getMediaWarning(currentOption, mediaFiles);
 
         return (
-          <div key={ch.channelId} style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+          <div key={platform} style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
             <div
               style={{
                 display: 'flex',
@@ -224,7 +212,7 @@ export function PostTypeSelector({
                 background: 'var(--stone-100)',
               }}
             >
-              <PlatformIcon platform={ch.platform} size="sm" />
+              <PlatformIcon platform={platform} size="sm" />
 
               <span
                 style={{
@@ -234,17 +222,17 @@ export function PostTypeSelector({
                   color: 'var(--stone-700)',
                 }}
               >
-                {platformDisplayName(ch.platform)}
+                {platformDisplayName(platform)}
               </span>
 
               <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                 {options.map((opt) => {
-                  const active = currentValue === opt.value;
+                  const active = postType === opt.value;
                   return (
                     <button
                       key={opt.value}
                       type="button"
-                      onClick={() => handleChange(ch.channelId, opt.value)}
+                      onClick={() => onOverride(platform, opt.value)}
                       style={{
                         padding: '4px 10px',
                         borderRadius: 'var(--radius-pill)',
@@ -276,7 +264,7 @@ export function PostTypeSelector({
                   borderRadius: '0 0 var(--radius-md) var(--radius-md)',
                   background: 'var(--color-warning-bg)',
                   fontSize: 'var(--text-xs)',
-                  color: '#92400E',
+                  color: 'var(--color-warning-text)',
                 }}
               >
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

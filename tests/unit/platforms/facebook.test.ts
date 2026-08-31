@@ -214,8 +214,11 @@ describe('FacebookHandler', () => {
       expect(mockFetch).toHaveBeenCalledTimes(3);
     });
 
-    it('publishes reel', async () => {
-      mockFetch.mockResolvedValueOnce(mockFetchOk({ id: 'reel_123' }));
+    it('publishes reel via the 3-phase flow (start → upload → finish)', async () => {
+      mockFetch.mockResolvedValueOnce(mockFetchOk({ video_id: 'reel_vid_1' })); // start
+      mockFetch.mockResolvedValueOnce(mockFetchOk({ success: true })); // rupload
+      mockFetch.mockResolvedValueOnce(mockFetchOk({ status: { video_status: 'upload_complete' } })); // poll
+      mockFetch.mockResolvedValueOnce(mockFetchOk({ success: true })); // finish
 
       const post = makePost({
         postType: 'reel',
@@ -223,7 +226,66 @@ describe('FacebookHandler', () => {
       });
       const result = await handler.publishPost(post, makeChannel());
       expect(result.success).toBe(true);
+      expect(result.postId).toBe('reel_vid_1');
+      expect(result.url).toBe('https://www.facebook.com/reel/reel_vid_1');
+
+      // start phase
       expect(mockFetch.mock.calls[0][0]).toContain('/page123/video_reels');
+      const startBody = mockFetch.mock.calls[0][1].body as URLSearchParams;
+      expect(startBody.get('upload_phase')).toBe('start');
+      // upload phase — hosted-file variant against rupload
+      expect(mockFetch.mock.calls[1][0]).toBe('https://rupload.facebook.com/video-reels/reel_vid_1');
+      expect(mockFetch.mock.calls[1][1].headers.file_url).toBe('https://cdn.test/vid.mp4');
+      // finish phase carries the video_id — the missing param in the old
+      // single-request implementation ("(#100) Missing parameter: video_id")
+      const finishBody = mockFetch.mock.calls[3][1].body as URLSearchParams;
+      expect(finishBody.get('upload_phase')).toBe('finish');
+      expect(finishBody.get('video_id')).toBe('reel_vid_1');
+      expect(finishBody.get('video_state')).toBe('PUBLISHED');
+    });
+
+    it('surfaces a start-phase error for reel', async () => {
+      mockFetch.mockResolvedValueOnce(
+        mockFetchError(400, { error: { message: 'Invalid parameter', code: 100 } }),
+      );
+      const post = makePost({ postType: 'reel', mediaFiles: [makeVideo()] });
+      const result = await handler.publishPost(post, makeChannel());
+      expect(result.success).toBe(false);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('surfaces an upload-phase failure for reel', async () => {
+      mockFetch.mockResolvedValueOnce(mockFetchOk({ video_id: 'reel_vid_2' }));
+      mockFetch.mockResolvedValueOnce(
+        mockFetchError(500, { debug_info: { message: 'Fetch of source failed' } }),
+      );
+      const post = makePost({ postType: 'reel', mediaFiles: [makeVideo()] });
+      const result = await handler.publishPost(post, makeChannel());
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Fetch of source failed');
+    });
+
+    it('fails reel when video processing errors', async () => {
+      mockFetch.mockResolvedValueOnce(mockFetchOk({ video_id: 'reel_vid_3' }));
+      mockFetch.mockResolvedValueOnce(mockFetchOk({ success: true }));
+      mockFetch.mockResolvedValueOnce(mockFetchOk({ status: { video_status: 'error' } }));
+      const post = makePost({ postType: 'reel', mediaFiles: [makeVideo()] });
+      const result = await handler.publishPost(post, makeChannel());
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('processing failed');
+    });
+
+    it('flags auth expiry on a code-190 reel finish error', async () => {
+      mockFetch.mockResolvedValueOnce(mockFetchOk({ video_id: 'reel_vid_4' }));
+      mockFetch.mockResolvedValueOnce(mockFetchOk({ success: true }));
+      mockFetch.mockResolvedValueOnce(mockFetchOk({ status: { video_status: 'ready' } }));
+      mockFetch.mockResolvedValueOnce(
+        mockFetchError(400, { error: { message: 'Session has expired', code: 190 } }),
+      );
+      const post = makePost({ postType: 'reel', mediaFiles: [makeVideo()] });
+      const result = await handler.publishPost(post, makeChannel());
+      expect(result.success).toBe(false);
+      expect(result.authExpired).toBe(true);
     });
 
     it('returns error for reel without video', async () => {

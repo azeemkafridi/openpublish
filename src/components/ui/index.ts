@@ -1,6 +1,7 @@
 export { Button, type ButtonProps } from './Button';
 export { Badge, type BadgeProps } from './Badge';
 export { Dialog, type DialogProps } from './Dialog';
+export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog';
 export { Input, type InputProps } from './Input';
 export { Textarea, type TextareaProps } from './Textarea';
 export { Select, type SelectProps, type SelectOption } from './Select';

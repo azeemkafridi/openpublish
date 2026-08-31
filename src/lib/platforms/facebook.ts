@@ -472,24 +472,160 @@ export class FacebookHandler extends PlatformHandler {
     return this.makeRequest(endpoint, params, 'video', channel);
   }
 
+  // Reels require the 3-phase resumable flow: start (returns a video_id),
+  // upload the video bytes to rupload (hosted-file variant via the file_url
+  // header), then finish with video_state=PUBLISHED. A single-request
+  // upload_phase=finish call fails with "(#100) Missing parameter: video_id".
   private async publishReel(
     post: PostData,
     channel: ChannelData,
     videoUrl: string,
   ): Promise<PublishResult> {
     const endpoint = `${BASE_URL}/${channel.accountId}/video_reels`;
-    const params = new URLSearchParams({
-      upload_phase: 'finish',
-      video_url: videoUrl,
-      access_token: channel.accessToken,
-    });
+    try {
+      // Phase 1: start — allocate a video container
+      const startRes = await fetch(endpoint, {
+        method: 'POST',
+        body: new URLSearchParams({
+          upload_phase: 'start',
+          access_token: channel.accessToken,
+        }),
+      });
+      const startData = (await startRes.json()) as {
+        video_id?: string;
+        error?: { message: string; code: number };
+      };
+      if (!startRes.ok || !startData.video_id) {
+        const msg = startData.error?.message || `Reel upload start failed (HTTP ${startRes.status})`;
+        this.logger.error({ msg, code: startData.error?.code }, 'Facebook reel start phase failed');
+        return {
+          success: false,
+          error: this.getUserFriendlyError(msg, startData.error?.code, 'reel'),
+          authExpired: startData.error?.code === 190,
+        };
+      }
+      const videoId = startData.video_id;
 
-    if (post.content) {
-      params.set('description', post.content);
+      // Phase 2: upload — hosted-file variant (Facebook pulls from our URL)
+      const uploadRes = await fetch(
+        `https://rupload.facebook.com/video-reels/${videoId}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `OAuth ${channel.accessToken}`,
+            file_url: videoUrl,
+          },
+        },
+      );
+      const uploadData = (await uploadRes.json()) as {
+        success?: boolean;
+        debug_info?: { message?: string };
+      };
+      if (!uploadRes.ok || !uploadData.success) {
+        const msg = uploadData.debug_info?.message || `Reel video upload failed (HTTP ${uploadRes.status})`;
+        this.logger.error({ msg, videoId, status: uploadRes.status }, 'Facebook reel upload phase failed');
+        return {
+          success: false,
+          error: this.getUserFriendlyError(msg, undefined, 'reel'),
+          // rupload rejects an expired/revoked token with a 401 rather than a
+          // Graph error object — flag it so the reconnect flow triggers.
+          authExpired: uploadRes.status === 401,
+        };
+      }
+
+      // Facebook needs the pulled file fully uploaded before finish; poll the
+      // video's upload status (same pattern as video stories).
+      const uploadWait = await this.waitForVideoStatus(videoId, channel.accessToken, [
+        'upload_complete',
+        'ready',
+        'processing',
+      ]);
+      if (!uploadWait.ok) {
+        return { success: false, error: `Reel ${uploadWait.error}` };
+      }
+
+      // Phase 3: finish — publish the reel
+      const finishParams = new URLSearchParams({
+        upload_phase: 'finish',
+        video_id: videoId,
+        video_state: 'PUBLISHED',
+        access_token: channel.accessToken,
+      });
+      if (post.content) {
+        finishParams.set('description', post.content);
+      }
+      const finishRes = await fetch(endpoint, { method: 'POST', body: finishParams });
+      const finishData = (await finishRes.json()) as {
+        success?: boolean;
+        error?: { message: string; code: number };
+      };
+      // The finish phase can return HTTP 200 with {success:false} and no
+      // error object — that is a failed publish, not a success.
+      if (!finishRes.ok || finishData.error || finishData.success === false) {
+        const msg = finishData.error?.message || `Reel publish failed (HTTP ${finishRes.status})`;
+        this.logger.error({ msg, code: finishData.error?.code, videoId }, 'Facebook reel finish phase failed');
+        return {
+          success: false,
+          error: this.getUserFriendlyError(msg, finishData.error?.code, 'reel'),
+          authExpired: finishData.error?.code === 190,
+        };
+      }
+
+      this.logger.info({ videoId }, 'Facebook reel published successfully');
+      return {
+        success: true,
+        postId: videoId,
+        url: `https://www.facebook.com/reel/${videoId}`,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error({ error: message }, 'Facebook reel publish failed');
+      return { success: false, error: `Failed to publish reel: ${message}` };
     }
+  }
 
-    this.logger.info({ videoUrl }, 'Publishing Reel to Facebook');
-    return this.makeRequest(endpoint, params, 'reel', channel);
+  // Polls /{videoId}?fields=status until video_status is one of okStatuses.
+  // Returns { ok: false, error } on 'error' status or timeout. A transient
+  // poll failure is NOT terminal — only the platform's own status field is.
+  private async waitForVideoStatus(
+    videoId: string,
+    accessToken: string,
+    okStatuses: string[],
+    maxAttempts = 30,
+  ): Promise<{ ok: boolean; error?: string }> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      let videoStatus: string | null = null;
+      try {
+        const statusRes = await fetch(
+          `${BASE_URL}/${videoId}?fields=status&access_token=${accessToken}`,
+        );
+        if (statusRes.ok) {
+          const statusData = (await statusRes.json()) as {
+            status?: { video_status?: string };
+          };
+          videoStatus = statusData.status?.video_status ?? null;
+        } else {
+          this.logger.warn(
+            { videoId, status: statusRes.status, attempt },
+            'Facebook video status poll returned an error, retrying',
+          );
+        }
+      } catch (error) {
+        this.logger.warn({ videoId, error: String(error), attempt }, 'Facebook video status poll failed, retrying');
+      }
+
+      if (videoStatus && okStatuses.includes(videoStatus)) {
+        return { ok: true };
+      }
+      if (videoStatus === 'error') {
+        return { ok: false, error: 'video processing failed' };
+      }
+      if (attempt === maxAttempts - 1) {
+        return { ok: false, error: 'video processing timed out' };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10_000));
+    }
+    return { ok: false, error: 'video processing timed out' };
   }
 
   private async publishStory(
@@ -521,26 +657,17 @@ export class FacebookHandler extends PlatformHandler {
         // Creating the story before the video finishes processing fails, so poll
         // its status first. Facebook may report 'upload_complete' before 'ready';
         // both are safe to publish from.
-        const maxAttempts = 30;
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          const statusRes = await fetch(
-            `${BASE_URL}/${videoData.id}?fields=status&access_token=${channel.accessToken}`,
-          );
-          const statusData = (await statusRes.json()) as {
-            status?: { video_status?: string };
+        const wait = await this.waitForVideoStatus(videoData.id, channel.accessToken, [
+          'upload_complete',
+          'ready',
+        ]);
+        if (!wait.ok) {
+          return {
+            success: false,
+            error: wait.error === 'video processing failed'
+              ? 'Story video processing failed'
+              : 'Timed out waiting for story video to process',
           };
-          const videoStatus = statusData.status?.video_status ?? 'error';
-
-          if (videoStatus === 'upload_complete' || videoStatus === 'ready') {
-            break;
-          }
-          if (videoStatus === 'error') {
-            return { success: false, error: 'Story video processing failed' };
-          }
-          if (attempt === maxAttempts - 1) {
-            return { success: false, error: 'Timed out waiting for story video to process' };
-          }
-          await new Promise((resolve) => setTimeout(resolve, 10_000));
         }
 
         const storyEndpoint = `${BASE_URL}/${channel.accountId}/video_stories`;

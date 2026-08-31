@@ -58,7 +58,15 @@ export function Dialog({
         background: 'var(--surface-overlay)',
         animation: 'dialogOverlayIn 200ms ease both',
       }}
+      // Stop clicks (and the mousedowns that precede them) from reaching the
+      // React tree and document-level listeners of whatever rendered the
+      // dialog: portals bubble through the component tree, so without this a
+      // click on a dialog button also fires the enclosing row's onClick, and
+      // outside-click handlers treat presses inside the dialog as "outside"
+      // and unmount it mid-interaction.
+      onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => {
+        e.stopPropagation();
         if (e.target === e.currentTarget) onClose?.();
       }}
     >

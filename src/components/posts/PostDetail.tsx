@@ -3,6 +3,7 @@ import { mediaImageUrl } from '@lib/media/display';
 import { useApi } from '@lib/swr';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Spinner } from '../ui/Spinner';
 import { PlatformIcon } from '../channels/PlatformIcon';
 import { platformDisplayName } from '@lib/platforms/types';
@@ -46,6 +47,7 @@ export function PostDetail({ postId }: PostDetailProps) {
   const { data: post, error: _fetchError, isLoading: loading, mutate: mutatePost } = useApi<Post>(`/api/posts/${postId}`);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function handleAction(action: 'publish' | 'retry' | 'delete') {
     if (!post) return;
@@ -212,16 +214,26 @@ export function PostDetail({ postId }: PostDetailProps) {
             variant="danger"
             size="sm"
             loading={actionLoading}
-            onClick={() => {
-              if (confirm('Are you sure you want to delete this post?')) {
-                handleAction('delete');
-              }
-            }}
+            onClick={() => setConfirmDelete(true)}
           >
             Delete
           </Button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete this post?"
+        message="The post and its publishing history will be removed. This cannot be undone."
+        confirmLabel="Delete post"
+        danger
+        busy={actionLoading}
+        onConfirm={() => {
+          setConfirmDelete(false);
+          handleAction('delete');
+        }}
+        onCancel={() => setConfirmDelete(false)}
+      />
 
       {error && (
         <p
