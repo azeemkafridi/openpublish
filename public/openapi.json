@@ -192,6 +192,11 @@
               "null"
             ],
             "description": "Reviewer's reason when approvalStatus is 'rejected'."
+          },
+          "shareToken": {
+            "type": "string",
+            "nullable": true,
+            "description": "Token of the post's read-only review link (/p/<token>), or null. Manage with POST/DELETE /api/posts/{id}/share."
           }
         }
       },
@@ -5120,6 +5125,99 @@
         "security": [
           {
             "apiKey": []
+          }
+        ]
+      }
+    },
+    "/api/posts/{id}/share": {
+      "post": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Create or get the post's review link",
+        "description": "Returns a read-only review link (https://app.bulkpublish.com/p/<token>) that anyone holding it can open without signing in. It shows the post's text, media, destinations and timing, always the current version. The first call creates the token (201); later calls return the same one (200). Body `{ \"regenerate\": true }` mints a new token and kills the old link. Posts expose the token as `shareToken` (null when no link exists).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "regenerate": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing link: { shareToken, url, created: false }"
+          },
+          "201": {
+            "description": "New link: { shareToken, url, created: true }"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "operationId": "createPostShareLink",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Revoke the post's review link",
+        "description": "Idempotent. Returns { success: true, revoked } where revoked says whether a link existed.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "operationId": "revokePostShareLink",
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauth2": [
+              "posts:write"
+            ]
           }
         ]
       }
