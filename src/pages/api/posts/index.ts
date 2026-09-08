@@ -25,7 +25,7 @@ import { getMediaPublicUrl } from '@lib/media/upload';
 import { logActivity } from '@lib/activity/log';
 import { checkPostQuotasBatch, checkScheduledPerDayQuota, checkPlatformAllowed, getOrgPlan } from '@lib/quotas/check';
 import { quotaExceededResponse } from '@lib/quotas/errors';
-import { PLATFORM_CHAR_LIMITS, validatePlatformContentShape, validatePlatformSpecificShape, validatePostTypeOverridesShape, validateThreadPartsShape, validatePostMediaForPlatforms } from '@lib/platforms/validation';
+import { PLATFORM_CHAR_LIMITS, validatePlatformContentShape, validatePlatformSpecificShape, validatePostTypeOverridesShape, validateThreadPartsShape, validateThreadPartLengths, validatePostMediaForPlatforms } from '@lib/platforms/validation';
 import { getPlatformAvailabilityFor } from '@lib/platforms/availability';
 import { platformLength } from '@lib/url';
 import { isChannelIdList } from '@lib/channels/validate';
@@ -685,6 +685,16 @@ export const POST: APIRoute = async ({ locals, request }) => {
           }
         }
       }
+      // A thread's `content` is only its head part, so the two checks above
+      // cover part 1 and nothing else. This measures every part, against each
+      // platform's own limit, including a per-platform override.
+      errors.push(...validateThreadPartLengths({
+        postFormat,
+        threadParts,
+        platformThreadParts,
+        platforms: channelEntries.map((ch: { platform: string }) => ch.platform),
+        postTypeOverrides,
+      }));
       if (errors.length > 0) {
         return json(
           { error: { message: errors.join('; '), code: 'VALIDATION_ERROR' } },

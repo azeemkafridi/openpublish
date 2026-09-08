@@ -629,6 +629,63 @@ export function validateThreadPartsShape(
 }
 
 /**
+ * Validate the LENGTH of every thread part, per platform.
+ *
+ * The per-platform content check next to this one only ever saw `content` and
+ * `platformContent`. A thread's `content` is its head part, so parts 2..n went
+ * to the platforms unchecked, and a per-platform override in
+ * `platformThreadParts` was never measured at all — an over-long part was
+ * accepted here and then rejected by the platform mid-thread, which leaves the
+ * post `partial` with the first segments already public and no way to fix them.
+ *
+ * Which parts a platform actually publishes is decided in exactly one place at
+ * publish time (`publishSingleThreadPlatform`): its own override when that
+ * override has entries, otherwise the global list. This mirrors that rule
+ * rather than restating it, because validating a different set than the one
+ * that publishes is worse than not validating at all.
+ *
+ * Returns one message per over-long part. An empty array means every part
+ * fits everywhere it is going.
+ */
+export function validateThreadPartLengths(args: {
+  postFormat?: string | null;
+  threadParts?: Array<{ content?: string | null }> | null;
+  platformThreadParts?: Record<string, Array<{ content?: string | null }>> | null;
+  platforms: string[];
+  postTypeOverrides?: Record<string, string> | null;
+}): string[] {
+  if (args.postFormat !== 'thread') return [];
+
+  const global = args.threadParts ?? [];
+  const perPlatform = args.platformThreadParts ?? {};
+  const errors: string[] = [];
+
+  for (const platform of new Set(args.platforms)) {
+    // A repost carries no text of its own, so it has no length to check.
+    if (args.postTypeOverrides?.[platform] === 'repost') continue;
+    const limit = PLATFORM_CHAR_LIMITS[platform as PlatformName];
+    if (typeof limit !== 'number') continue;
+
+    // Same resolution as publish time: an override wins only when it has parts.
+    const override = perPlatform[platform];
+    const parts = override?.length ? override : global;
+
+    parts.forEach((part, index) => {
+      const text = typeof part?.content === 'string' ? part.content : '';
+      if (!text) return;
+      const length = platformLength(text, platform);
+      if (length > limit) {
+        errors.push(
+          `${platform}: thread part ${index + 1} exceeds ${limit} character limit (${length})`,
+        );
+      }
+    });
+  }
+
+  return errors;
+}
+
+/**
  * Validate a post's media against EVERY platform it targets, in one call.
  *
  * This is the server-side gate for the create/publish API routes (and the
