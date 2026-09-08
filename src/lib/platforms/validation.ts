@@ -667,8 +667,12 @@ export function validateThreadPartLengths(args: {
     if (typeof limit !== 'number') continue;
 
     // Same resolution as publish time: an override wins only when it has parts.
+    // Array.isArray, not a truthiness check: the shape validators that run
+    // ahead of this in the routes would already have rejected a non-array
+    // override, but this function's whole job is turning bad input into a 400
+    // and a TypeError here would be a 500 instead.
     const override = perPlatform[platform];
-    const parts = override?.length ? override : global;
+    const parts = Array.isArray(override) && override.length ? override : (Array.isArray(global) ? global : []);
 
     parts.forEach((part, index) => {
       const text = typeof part?.content === 'string' ? part.content : '';
@@ -682,6 +686,18 @@ export function validateThreadPartLengths(args: {
     });
   }
 
+  /*
+   * Cap what we say. Nothing limits how many parts a thread may have, so a
+   * client sending hundreds of over-long parts across four platforms would get
+   * a four-figure list of messages concatenated into one error string. The
+   * first few tell the caller everything they need; the count tells them the
+   * scale.
+   */
+  const MAX_REPORTED = 10;
+  if (errors.length > MAX_REPORTED) {
+    const hidden = errors.length - MAX_REPORTED;
+    return [...errors.slice(0, MAX_REPORTED), `and ${hidden} more thread part${hidden === 1 ? '' : 's'} over the limit`];
+  }
   return errors;
 }
 

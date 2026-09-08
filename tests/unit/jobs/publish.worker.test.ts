@@ -181,9 +181,17 @@ vi.mock('@/lib/platforms/types', () => ({
   },
 }));
 
-vi.mock('@/lib/platforms/validation', () => ({
-  validateForPlatform: (...args: any[]) => mockValidateForPlatform(...args),
-}));
+// Stub only what the tests drive and leave the rest real: a bare factory made
+// every other export undefined, so the worker reaching for a second function
+// from this module threw inside its own try/catch and looked like a publish
+// failure.
+vi.mock('@/lib/platforms/validation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/platforms/validation')>();
+  return {
+    ...actual,
+    validateForPlatform: (...args: any[]) => mockValidateForPlatform(...args),
+  };
+});
 
 vi.mock('@/lib/media/upload', () => ({
   getMediaPublicUrl: (...args: [string]) => mockGetMediaPublicUrl(...args),
@@ -199,9 +207,13 @@ vi.mock('@/lib/media/r2', () => ({
   isR2Key: (p: string) => !p.startsWith('/'),
 }));
 
-vi.mock('@/lib/url', () => ({
-  extractFirstUrl: (...args: any[]) => mockExtractFirstUrl(...args),
-}));
+vi.mock('@/lib/url', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/url')>();
+  return {
+    ...actual,
+    extractFirstUrl: (...args: any[]) => mockExtractFirstUrl(...args),
+  };
+});
 
 vi.mock('@/lib/activity/log', () => ({
   logActivity: (...args: any[]) => mockLogActivity(...args),

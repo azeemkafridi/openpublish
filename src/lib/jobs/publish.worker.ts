@@ -17,7 +17,7 @@ import { logActivity } from '../activity/log';
 import { getMediaPublicUrl, convertImageIfNeeded, composeStoryImage } from '../media/upload';
 import { extractFirstUrl } from '../url';
 import { fetchLinkPreviewCached } from '../link-preview';
-import { validateForPlatform } from '../platforms/validation';
+import { validateForPlatform, validateThreadPartLengths } from '../platforms/validation';
 import { isReconnectError, classifyPublishError } from '../platforms/auth-errors';
 import { acquireRefreshLock, releaseRefreshLock, waitForRefreshLock } from '../oauth/refresh-lock';
 import { withPlatformSlot } from './platform-semaphore';
@@ -1482,6 +1482,42 @@ async function publishSingleThreadPlatform(
           `${platformDisplayName(pp.platform)} is temporarily unavailable — this post is on hold and will publish automatically once it's back.`,
         pp.threadPostIds,
       );
+    }
+
+    /*
+     * Pre-publish length check, the thread equivalent of the
+     * validateForPlatform call on the single-post path — which a thread never
+     * reached, so an over-long part went to the platform and was refused
+     * part-way through, leaving segments already public.
+     *
+     * Only on a FRESH publish. On a resume some segments are already live and
+     * the handler skips them; failing the whole platform then could reject a
+     * thread that would otherwise finish.
+     */
+    if (!pp.threadPostIds?.length) {
+      const lengthErrors = validateThreadPartLengths({
+        postFormat: 'thread',
+        threadParts: effectiveParts,
+        platforms: [pp.platform],
+        postTypeOverrides: post.postTypeOverrides as Record<string, string> | null,
+      });
+      if (lengthErrors.length > 0) {
+        const errorMsg = lengthErrors.join('; ');
+        logger.warn({ postId, platform: pp.platform, errors: lengthErrors }, 'Thread pre-publish validation failed');
+        await db
+          .update(postPlatforms)
+          .set({ status: 'failed', errorMessage: errorMsg, publishedAt: new Date() })
+          .where(eq(postPlatforms.id, pp.id));
+        await addNotificationJob(
+          post.userId,
+          'post_failed',
+          `Failed to publish thread to ${platformDisplayName(pp.platform)}`,
+          errorMsg,
+          { postId, platform: pp.platform, channelId: pp.channelId, contentSnippet: (effectiveParts[0]?.content || '').slice(0, 80) },
+          post.organizationId,
+        );
+        return;
+      }
     }
 
     const handler = getPlatformHandler(pp.platform as PlatformName);
