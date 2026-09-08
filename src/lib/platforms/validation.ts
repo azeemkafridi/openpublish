@@ -470,7 +470,9 @@ const PLATFORM_SPECIFIC_ENUMS: Array<{
 const PLATFORM_SPECIFIC_URL_FIELDS: Array<{ platform: string; field: string }> = [
   { platform: 'youtube', field: 'thumbnailUrl' },   // fetched by our worker
   { platform: 'reddit', field: 'thumbnailUrl' },    // fetched by our worker
+  { platform: 'facebook', field: 'thumbnailUrl' },  // fetched by our worker, POSTed to the video's thumbnails edge
   { platform: 'pinterest', field: 'coverImageUrl' }, // handed to Pinterest's API
+  { platform: 'instagram', field: 'coverUrl' },      // handed to Instagram's API as cover_url
   { platform: 'gmb', field: 'ctaUrl' },              // handed to Google's API
   { platform: 'gmb', field: 'redeemOnlineUrl' },     // handed to Google's API
 ];

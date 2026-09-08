@@ -490,6 +490,30 @@ export class InstagramHandler extends PlatformHandler {
     };
   }
 
+  /**
+   * Choose the still Instagram shows before a video plays.
+   *
+   * Two ways to say it, and Instagram accepts only one at a time: `cover_url`
+   * is any public image, `thumb_offset` is a moment in the video itself. When
+   * both are set the image wins — it is the more specific instruction.
+   *
+   * Both the feed video and the Reel go through this. They were not the same
+   * before: a Reel honoured thumb_offset and a feed video silently ignored it,
+   * even though both post as media_type REELS through the identical container.
+   */
+  private applyVideoCover(containerParams: Record<string, string>, post: PostData): void {
+    const coverUrl = post.platformSpecific?.coverUrl;
+    if (typeof coverUrl === 'string' && coverUrl.trim()) {
+      containerParams.cover_url = coverUrl.trim();
+      return;
+    }
+
+    const thumbOffset = post.platformSpecific?.thumbnailTimestamp;
+    if (typeof thumbOffset === 'number' && thumbOffset > 0) {
+      containerParams.thumb_offset = String(Math.round(thumbOffset * 1000)); // seconds → ms
+    }
+  }
+
   private async publishFeedVideo(
     post: PostData,
     userId: string,
@@ -517,6 +541,8 @@ export class InstagramHandler extends PlatformHandler {
     if (collabs.length > 0) {
       containerParams.collaborators = JSON.stringify(collabs);
     }
+
+    this.applyVideoCover(containerParams, post);
 
     const container = await this.createMediaContainer(userId, containerParams);
 
@@ -563,11 +589,7 @@ export class InstagramHandler extends PlatformHandler {
       containerParams.trial_params = JSON.stringify({ graduation_strategy: strategy });
     }
 
-    // Video thumbnail timestamp (cover frame)
-    const thumbOffset = post.platformSpecific?.thumbnailTimestamp;
-    if (typeof thumbOffset === 'number' && thumbOffset > 0) {
-      containerParams.thumb_offset = String(Math.round(thumbOffset * 1000)); // seconds → ms
-    }
+    this.applyVideoCover(containerParams, post);
 
     const container = await this.createMediaContainer(userId, containerParams);
 

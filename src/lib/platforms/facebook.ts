@@ -469,7 +469,57 @@ export class FacebookHandler extends PlatformHandler {
       'Publishing video to Facebook',
     );
 
-    return this.makeRequest(endpoint, params, 'video', channel);
+    const result = await this.makeRequest(endpoint, params, 'video', channel);
+    if (result.success && result.postId) {
+      await this.setPreferredThumbnail(result.postId, post, channel);
+    }
+    return result;
+  }
+
+  /**
+   * Give a published video the still the user picked.
+   *
+   * Facebook has no thumbnail parameter on either upload path — the cover is a
+   * separate edge on the video, settable only once the video id exists. So this
+   * runs AFTER the publish, and never fails it: the video is already live and
+   * public by the time we get here, and taking the whole post down to failed
+   * over a cover image would be a far worse outcome than Facebook's own
+   * auto-picked frame.
+   */
+  private async setPreferredThumbnail(
+    videoId: string,
+    post: PostData,
+    channel: ChannelData,
+  ): Promise<void> {
+    const raw = post.platformSpecific?.thumbnailUrl;
+    const thumbnailUrl = typeof raw === 'string' ? raw.trim() : '';
+    if (!thumbnailUrl) return;
+
+    try {
+      // User-supplied URL — must go through the SSRF-guarded fetch, never plain fetch.
+      const imageRes = await this.fetchRemoteMedia(thumbnailUrl);
+      if (!imageRes.ok) {
+        this.logger.warn({ videoId, status: imageRes.status }, 'Facebook thumbnail source could not be fetched');
+        return;
+      }
+      const bytes = await imageRes.arrayBuffer();
+      const contentType = imageRes.headers.get('content-type') || 'image/jpeg';
+
+      const form = new FormData();
+      form.append('source', new Blob([bytes], { type: contentType }), 'cover.jpg');
+      form.append('is_preferred', 'true');
+      form.append('access_token', channel.accessToken);
+
+      const res = await fetch(`${BASE_URL}/${videoId}/thumbnails`, { method: 'POST', body: form });
+      if (!res.ok) {
+        const errText = await res.text();
+        this.logger.warn({ videoId, status: res.status, error: errText.slice(0, 500) }, 'Facebook thumbnail set failed');
+        return;
+      }
+      this.logger.info({ videoId }, 'Facebook video thumbnail set');
+    } catch (error) {
+      this.logger.warn({ videoId, error: String(error) }, 'Facebook thumbnail set errored');
+    }
   }
 
   // Reels require the 3-phase resumable flow: start (returns a video_id),
@@ -570,6 +620,8 @@ export class FacebookHandler extends PlatformHandler {
           authExpired: finishData.error?.code === 190,
         };
       }
+
+      await this.setPreferredThumbnail(videoId, post, channel);
 
       this.logger.info({ videoId }, 'Facebook reel published successfully');
       return {

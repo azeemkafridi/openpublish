@@ -66,6 +66,8 @@ export interface PlatformSpecific {
   };
   facebook?: {
     shareToStory?: boolean;
+    /** Cover for a video or Reel. Applied on the video after it publishes. */
+    thumbnailUrl?: string;
   };
   instagram?: {
     collaborators?: string;
@@ -73,6 +75,8 @@ export interface PlatformSpecific {
     trialReel?: boolean;
     graduationStrategy?: 'manual' | 'auto';
     thumbnailTimestamp?: number;
+    /** Cover image for a video or Reel. Takes precedence over thumbnailTimestamp. */
+    coverUrl?: string;
   };
   threads?: {
     quotePostId?: string;
@@ -1146,6 +1150,27 @@ export function PlatformOptions({
   const linkedinPostType = postTypes?.linkedin;
   const showLinkedInCarouselToggle = hasLinkedIn && (linkedinPostType === 'multi_image' || linkedinPostType === 'pdf_carousel');
 
+  /**
+   * Trial Reels exist only on the Reel post type: Instagram accepts
+   * `trial_params` on the Reel container and nowhere else, so the handler
+   * reads it in publishReel alone and a feed video posts as a plain Reel.
+   * The control is therefore shown for the Reel type only, and a value left
+   * behind by a post-type switch is cleared rather than quietly dropped at
+   * publish time.
+   */
+  const igPostType = postTypes?.instagram;
+  const showTrialReel = hasInstagram && igPostType === 'reel';
+  const igTrialChosen = platformSpecific.instagram?.trialReel !== undefined
+    || platformSpecific.instagram?.graduationStrategy !== undefined;
+  useEffect(() => {
+    if (!postTypes || !hasInstagram || igPostType === 'reel' || !igTrialChosen) return;
+    const { trialReel: _trialReel, graduationStrategy: _graduationStrategy, ...rest } = platformSpecific.instagram ?? {};
+    onChange({ ...platformSpecific, instagram: rest });
+    // Reacts to the post type changing; the clear makes igTrialChosen false,
+    // so it cannot re-fire.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postTypes, hasInstagram, igPostType, igTrialChosen]);
+
   if (!hasFacebook && !hasX && !hasPinterest && !hasGmb && !hasYouTube && !hasTikTok && !showLinkedInCarouselToggle && !hasInstagram && !hasThreads && !hasReddit && !hasDiscord && !hasTumblr && !hasSnapchat) return null;
 
   /* ---- X handlers ---- */
@@ -1326,6 +1351,22 @@ export function PlatformOptions({
           <p style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-400)', margin: '4px 0 0 26px' }}>
             Posts the first image or video as a Facebook Story (disappears after 24h)
           </p>
+
+          <div style={{ marginTop: '12px' }}>
+            <FieldLabel>Video cover</FieldLabel>
+            <CoverImagePicker
+              value={platformSpecific.facebook?.thumbnailUrl ?? ''}
+              onChange={(url) => onChange({
+                ...platformSpecific,
+                facebook: { ...platformSpecific.facebook, thumbnailUrl: url || undefined },
+              })}
+              placeholder="https://example.com/cover.jpg"
+            />
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-400)' }}>
+              Videos and Reels only. Set after the video is live, so it applies a moment
+              after publishing. Leave blank and Facebook picks a frame.
+            </span>
+          </div>
         </div>
       )}
 
@@ -1367,6 +1408,7 @@ export function PlatformOptions({
               Comma-separated Instagram usernames (without @)
             </p>
           </div>
+          {showTrialReel && (
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '12px' }}>
             <input
               type="checkbox"
@@ -1378,10 +1420,13 @@ export function PlatformOptions({
             />
             <span style={{ fontSize: 'var(--text-sm)', color: 'var(--stone-700)' }}>Trial Reel</span>
           </label>
+          )}
+          {showTrialReel && (
           <p style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-400)', margin: '4px 0 0 26px' }}>
-            Test your Reel with non-followers first. Only applies to Reel post type.
+            Shows the Reel to people who do not follow you, so you can see how it lands before it reaches your followers.
           </p>
-          {platformSpecific.instagram?.trialReel && (
+          )}
+          {showTrialReel && platformSpecific.instagram?.trialReel && (
             <div style={{ marginTop: '8px', marginLeft: '26px' }}>
               <FieldLabel>Graduation</FieldLabel>
               <div style={{ position: 'relative' }}>
@@ -1419,6 +1464,23 @@ export function PlatformOptions({
             <p style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-400)', margin: '4px 0 0' }}>
               Pick which frame to use as the video cover
             </p>
+          </div>
+
+          {/* A cover IMAGE beats the timestamp — Instagram accepts either, and
+              sends cover_url when both are present. */}
+          <div style={{ marginTop: '12px' }}>
+            <FieldLabel>Cover image</FieldLabel>
+            <CoverImagePicker
+              value={platformSpecific.instagram?.coverUrl ?? ''}
+              onChange={(url) => onChange({
+                ...platformSpecific,
+                instagram: { ...platformSpecific.instagram, coverUrl: url || undefined },
+              })}
+              placeholder="https://example.com/cover.jpg"
+            />
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-400)' }}>
+              Videos and Reels only. Set this and the timestamp above is ignored.
+            </span>
           </div>
         </div>
       )}
