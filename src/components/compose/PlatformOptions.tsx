@@ -1079,7 +1079,10 @@ function TikTokSection({
           step="0.1"
           placeholder="e.g. 2.5"
           value={ttData.thumbnailTimestamp ?? ''}
-          onChange={(e) => onField('thumbnailTimestamp', e.target.value ? String(Number(e.target.value)) : '')}
+          // A NUMBER, not a string: the TikTok handler gates this field on
+          // `typeof === 'number'`, so String(Number(v)) meant a cover set here
+          // was silently dropped at publish time.
+          onChange={(e) => onField('thumbnailTimestamp', e.target.value ? Number(e.target.value) : '')}
           style={{ fontSize: 'var(--text-sm)', width: '120px' }}
         />
         <p style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-400)', margin: '4px 0 0' }}>
@@ -1160,6 +1163,16 @@ export function PlatformOptions({
    */
   const igPostType = postTypes?.instagram;
   const showTrialReel = hasInstagram && igPostType === 'reel';
+
+  /*
+   * A cover is only read where a video plays: Instagram reads it on the
+   * feed-video and Reel containers, Facebook on a video post and a Reel but
+   * never a Story. An UNKNOWN post type keeps the controls, since a caller
+   * that passes none would otherwise lose the capability entirely.
+   */
+  const showIgCover = hasInstagram
+    && (igPostType === undefined || igPostType === 'reel' || igPostType === 'feed_video');
+  const showFbCover = hasFacebook && postTypes?.facebook !== 'story';
   const igTrialChosen = platformSpecific.instagram?.trialReel !== undefined
     || platformSpecific.instagram?.graduationStrategy !== undefined;
   useEffect(() => {
@@ -1352,21 +1365,23 @@ export function PlatformOptions({
             Posts the first image or video as a Facebook Story (disappears after 24h)
           </p>
 
-          <div style={{ marginTop: '12px' }}>
-            <FieldLabel>Video cover</FieldLabel>
-            <CoverImagePicker
-              value={platformSpecific.facebook?.thumbnailUrl ?? ''}
-              onChange={(url) => onChange({
-                ...platformSpecific,
-                facebook: { ...platformSpecific.facebook, thumbnailUrl: url || undefined },
-              })}
-              placeholder="https://example.com/cover.jpg"
-            />
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-400)' }}>
-              Videos and Reels only. Set after the video is live, so it applies a moment
-              after publishing. Leave blank and Facebook picks a frame.
-            </span>
-          </div>
+          {showFbCover && (
+            <div style={{ marginTop: '12px' }}>
+              <FieldLabel>Video cover</FieldLabel>
+              <CoverImagePicker
+                value={platformSpecific.facebook?.thumbnailUrl ?? ''}
+                onChange={(url) => onChange({
+                  ...platformSpecific,
+                  facebook: { ...platformSpecific.facebook, thumbnailUrl: url || undefined },
+                })}
+                placeholder="https://example.com/cover.jpg"
+              />
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-400)' }}>
+                Videos only. Applied a moment after publishing, because Facebook accepts a
+                cover once the video exists. Leave blank and Facebook picks a frame.
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -1446,42 +1461,46 @@ export function PlatformOptions({
               </div>
             </div>
           )}
-          <div style={{ marginTop: '12px' }}>
-            <FieldLabel>Thumbnail timestamp (seconds)</FieldLabel>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.1"
-              placeholder="e.g. 2.5"
-              value={platformSpecific.instagram?.thumbnailTimestamp ?? ''}
-              onChange={(e) => onChange({
-                ...platformSpecific,
-                instagram: { ...platformSpecific.instagram, thumbnailTimestamp: e.target.value ? Number(e.target.value) : undefined },
-              })}
-              style={{ fontSize: 'var(--text-sm)', width: '120px' }}
-            />
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-400)', margin: '4px 0 0' }}>
-              Pick which frame to use as the video cover
-            </p>
-          </div>
+          {showIgCover && (
+            <div style={{ marginTop: '12px' }}>
+              <FieldLabel>Thumbnail timestamp (seconds)</FieldLabel>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.1"
+                placeholder="e.g. 2.5"
+                value={platformSpecific.instagram?.thumbnailTimestamp ?? ''}
+                onChange={(e) => onChange({
+                  ...platformSpecific,
+                  instagram: { ...platformSpecific.instagram, thumbnailTimestamp: e.target.value ? Number(e.target.value) : undefined },
+                })}
+                style={{ fontSize: 'var(--text-sm)', width: '120px' }}
+              />
+              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-400)', margin: '4px 0 0' }}>
+                Pick which frame to use as the video cover
+              </p>
+            </div>
+          )}
 
           {/* A cover IMAGE beats the timestamp — Instagram accepts either, and
               sends cover_url when both are present. */}
-          <div style={{ marginTop: '12px' }}>
-            <FieldLabel>Cover image</FieldLabel>
-            <CoverImagePicker
-              value={platformSpecific.instagram?.coverUrl ?? ''}
-              onChange={(url) => onChange({
-                ...platformSpecific,
-                instagram: { ...platformSpecific.instagram, coverUrl: url || undefined },
-              })}
-              placeholder="https://example.com/cover.jpg"
-            />
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-400)' }}>
-              Videos and Reels only. Set this and the timestamp above is ignored.
-            </span>
-          </div>
+          {showIgCover && (
+            <div style={{ marginTop: '12px' }}>
+              <FieldLabel>Cover image</FieldLabel>
+              <CoverImagePicker
+                value={platformSpecific.instagram?.coverUrl ?? ''}
+                onChange={(url) => onChange({
+                  ...platformSpecific,
+                  instagram: { ...platformSpecific.instagram, coverUrl: url || undefined },
+                })}
+                placeholder="https://example.com/cover.jpg"
+              />
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-400)' }}>
+                Set this and the timestamp above is ignored.
+              </span>
+            </div>
+          )}
         </div>
       )}
 
