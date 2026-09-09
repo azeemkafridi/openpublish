@@ -1163,6 +1163,11 @@ export function PlatformOptions({
    */
   const igPostType = postTypes?.instagram;
   const showTrialReel = hasInstagram && igPostType === 'reel';
+  /*
+   * Co-authors work on every Instagram post type except a Story, which has no
+   * co-author concept. Unknown post type keeps the field.
+   */
+  const showCollaborators = hasInstagram && igPostType !== 'story';
 
   /*
    * A cover is only read where a video plays: Instagram reads it on the
@@ -1406,6 +1411,7 @@ export function PlatformOptions({
           <p style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-400)', margin: '4px 0 0 26px' }}>
             Posts the first image or video as an Instagram Story (disappears after 24h)
           </p>
+          {showCollaborators && (
           <div style={{ marginTop: '12px' }}>
             <FieldLabel>Collaborators</FieldLabel>
             <input
@@ -1423,6 +1429,7 @@ export function PlatformOptions({
               Comma-separated Instagram usernames (without @)
             </p>
           </div>
+          )}
           {showTrialReel && (
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '12px' }}>
             <input

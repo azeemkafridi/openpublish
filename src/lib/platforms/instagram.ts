@@ -470,13 +470,7 @@ export class InstagramHandler extends PlatformHandler {
       containerParams.caption = post.content;
     }
 
-    const rawCollabs = post.platformSpecific?.collaborators;
-    const collabs = typeof rawCollabs === 'string'
-      ? rawCollabs.split(',').map((s: string) => s.trim()).filter(Boolean)
-      : Array.isArray(rawCollabs) ? rawCollabs : [];
-    if (collabs.length > 0) {
-      containerParams.collaborators = JSON.stringify(collabs);
-    }
+    this.applyCollaborators(containerParams, post);
 
     const container = await this.createMediaContainer(userId, containerParams);
 
@@ -488,6 +482,25 @@ export class InstagramHandler extends PlatformHandler {
       processing: true,
       processingId: container.id,
     };
+  }
+
+  /**
+   * Tag co-authors on the post.
+   *
+   * Instagram accepts `collaborators` on a single image, a video/Reel and the
+   * PARENT container of a carousel — not on a Story, which has no co-author
+   * concept. The composer offered the field for every Instagram post type
+   * while only the first three honoured it, so a carousel's collaborators were
+   * accepted, saved and then dropped at publish with no error anywhere.
+   */
+  private applyCollaborators(containerParams: Record<string, string>, post: PostData): void {
+    const raw = post.platformSpecific?.collaborators;
+    const names = typeof raw === 'string'
+      ? raw.split(',').map((s: string) => s.trim()).filter(Boolean)
+      : Array.isArray(raw) ? raw : [];
+    if (names.length > 0) {
+      containerParams.collaborators = JSON.stringify(names);
+    }
   }
 
   /**
@@ -534,13 +547,7 @@ export class InstagramHandler extends PlatformHandler {
       containerParams.caption = post.content;
     }
 
-    const rawCollabs = post.platformSpecific?.collaborators;
-    const collabs = typeof rawCollabs === 'string'
-      ? rawCollabs.split(',').map((s: string) => s.trim()).filter(Boolean)
-      : Array.isArray(rawCollabs) ? rawCollabs : [];
-    if (collabs.length > 0) {
-      containerParams.collaborators = JSON.stringify(collabs);
-    }
+    this.applyCollaborators(containerParams, post);
 
     this.applyVideoCover(containerParams, post);
 
@@ -575,13 +582,7 @@ export class InstagramHandler extends PlatformHandler {
       containerParams.caption = post.content;
     }
 
-    const rawCollabs = post.platformSpecific?.collaborators;
-    const collabs = typeof rawCollabs === 'string'
-      ? rawCollabs.split(',').map((s: string) => s.trim()).filter(Boolean)
-      : Array.isArray(rawCollabs) ? rawCollabs : [];
-    if (collabs.length > 0) {
-      containerParams.collaborators = JSON.stringify(collabs);
-    }
+    this.applyCollaborators(containerParams, post);
 
     // Trial Reels — test content with non-followers before going public
     if (post.platformSpecific?.trialReel) {
@@ -684,6 +685,8 @@ export class InstagramHandler extends PlatformHandler {
     if (post.content) {
       carouselParams.caption = post.content;
     }
+    // Co-authors go on the parent, never on the children.
+    this.applyCollaborators(carouselParams, post);
 
     const carouselContainer = await this.createMediaContainer(userId, carouselParams);
     this.logger.debug({ containerId: carouselContainer.id }, 'Carousel parent container created');
