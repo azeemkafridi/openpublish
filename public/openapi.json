@@ -193,6 +193,49 @@
             ],
             "description": "Reviewer's reason when approvalStatus is 'rejected'."
           },
+          "assignee": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The member expected to act on the post next, or null when nobody is. Set with assignedUserId on PATCH /api/posts/{id}.",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "image": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "assignedUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "User ID of the assignee; `assignee` carries the same person with a display name."
+          },
+          "assignedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the post was assigned. Null once it is unassigned."
+          },
+          "rejectedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "User ID of the reviewer who rejected the post, alongside rejectionReason."
+          },
           "author": {
             "type": [
               "object",
@@ -1243,6 +1286,15 @@
               ]
             },
             "description": "Filter by team approval state (e.g. 'pending' for the approval queue)."
+          },
+          {
+            "name": "assignedTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by who the post is assigned to: a user id, `me` for the caller, or `unassigned` for posts nobody has taken. Assignment is orthogonal to status \u2014 a post can be scheduled AND assigned."
           }
         ],
         "responses": {
