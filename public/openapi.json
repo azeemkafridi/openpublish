@@ -1243,7 +1243,7 @@
           "Posts"
         ],
         "summary": "Create post",
-        "description": "Create a new post as draft or scheduled. Validates character limits per platform, media ownership, channel ownership, and plan quotas.\n\n**Character limits:** X: 280, Bluesky: 300, Threads: 500, Mastodon: 500, Pinterest: 500, GMB: 1500, Instagram: 2200, TikTok: 2200, LinkedIn: 3000, YouTube: 5000, Facebook: 63206. On X and Mastodon every URL counts as a flat 23 characters (t.co wrapping / Mastodon link counting), regardless of its real length.\n\n**Link cards:** for a text-only post (no media) containing a URL, the first URL is unfurled at publish time. Facebook receives it as the `link` param, Bluesky as an external embed (with thumbnail), and LinkedIn as a `content.article` card (LinkedIn's API never scrapes URLs itself; if the page yields no title, the post publishes as plain text without a card). Other platforms unfurl the URL themselves or render it as plain text (links in Instagram/TikTok captions are not clickable).\n\nReturns **403** with `code: \"PLATFORM_DISABLED\"` when a target channel's platform has been switched off server-side (`PLATFORM_<NAME>=off`). This is distinct from `FEATURE_DISABLED`, which means the platform is not on the organization's plan. Check `GET /api/platforms` for current availability. A channel's *variant* can be off on its own \u2014 LinkedIn company pages are gated separately from personal profiles \u2014 in which case the error also carries `accountType` (e.g. `\"organization\"`) naming the variant that is unavailable.",
+        "description": "Create a new post as draft or scheduled. Validates character limits per platform, media ownership, channel ownership, and plan quotas.\n\n**Character limits:** X: 280, Bluesky: 300, Threads: 500, Mastodon: 500, Pinterest: 500, GMB: 1500, Instagram: 2200, TikTok: 2200, LinkedIn: 3000, YouTube: 5000, Facebook: 63206. On X and Mastodon every URL counts as a flat 23 characters (t.co wrapping / Mastodon link counting), regardless of its real length.\n\n**Link cards:** for a text-only post (no media) containing a URL, the first URL is unfurled at publish time. Facebook receives it as the `link` param, Bluesky as an external embed (with thumbnail), and LinkedIn as a `content.article` card (LinkedIn's API never scrapes URLs itself; if the page yields no title, the post publishes as plain text without a card). Other platforms unfurl the URL themselves or render it as plain text (links in Instagram/TikTok captions are not clickable).\n\nReturns **403** with `code: \"PLATFORM_DISABLED\"` when a target channel's platform has been switched off server-side (`PLATFORM_<NAME>=off`). This is distinct from `FEATURE_DISABLED`, which means the platform is not on the organization's plan. Check `GET /api/platforms` for current availability. A channel's *variant* can be off on its own \u2014 LinkedIn company pages are gated separately from personal profiles \u2014 in which case the error also carries `accountType` (e.g. `\"organization\"`) naming the variant that is unavailable. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1610,7 +1610,7 @@
           "Posts"
         ],
         "summary": "Update post",
-        "description": "Update a draft, scheduled, failed, or partial post. Note: the per-platform object fields (platformSpecific, platformContent, postTypeOverrides, platformThreadParts) are replaced wholesale, not merged \u2014 send the complete object including keys for every platform you want to keep. Sending a partial object (e.g. only one platform's content) removes the stored values for all other platforms. Editing a FAILED post silently resets its status to draft and clears its failed platform results (they revert to pending). Editing a PARTIAL post keeps it partial and leaves every platform row untouched \u2014 it is live on some channels; re-send the failed ones with POST /api/posts/{id}/retry, or send status 'scheduled' with a scheduledAt, which re-queues exactly the failed channels for that time. Platforms in 'published', 'processing', or 'unconfirmed' are never reset by an edit. When `channels` is sent, rows for channels that remain keep their state (a published channel is NOT re-published on the next publish); removed channels are dropped and new ones added as pending. Send the optional status field ('draft' or 'scheduled') to move a post between draft and scheduled; other status values are rejected. To publish immediately, use POST /api/posts/{id}/publish instead.",
+        "description": "Update a draft, scheduled, failed, or partial post. Note: the per-platform object fields (platformSpecific, platformContent, postTypeOverrides, platformThreadParts) are replaced wholesale, not merged \u2014 send the complete object including keys for every platform you want to keep. Sending a partial object (e.g. only one platform's content) removes the stored values for all other platforms. Editing a FAILED post silently resets its status to draft and clears its failed platform results (they revert to pending). Editing a PARTIAL post keeps it partial and leaves every platform row untouched \u2014 it is live on some channels; re-send the failed ones with POST /api/posts/{id}/retry, or send status 'scheduled' with a scheduledAt, which re-queues exactly the failed channels for that time. Platforms in 'published', 'processing', or 'unconfirmed' are never reset by an edit. When `channels` is sent, rows for channels that remain keep their state (a published channel is NOT re-published on the next publish); removed channels are dropped and new ones added as pending. Send the optional status field ('draft' or 'scheduled') to move a post between draft and scheduled; other status values are rejected. To publish immediately, use POST /api/posts/{id}/publish instead. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "parameters": [
           {
             "name": "id",
@@ -1781,7 +1781,7 @@
             ]
           }
         ],
-        "description": "Returns 409 with code PUBLISH_IN_PROGRESS while the post is 'publishing' or 'processing' \u2014 a post mid-publish cannot be deleted (the platform post would still go live with no record of it). Wait for it to settle, then delete."
+        "description": "Returns 409 with code PUBLISH_IN_PROGRESS while the post is 'publishing' or 'processing' \u2014 a post mid-publish cannot be deleted (the platform post would still go live with no record of it). Wait for it to settle, then delete. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN."
       }
     },
     "/api/posts/{id}/publish": {
@@ -1873,7 +1873,7 @@
             "description": "No failed platforms, or unconfirmed platforms present without republish: true (code UNCONFIRMED_REQUIRES_REPUBLISH)"
           }
         },
-        "description": "Re-queues this post's failed platforms. Platforms in status 'unconfirmed' (the publish request may have reached the platform but its response was lost \u2014 the post may already be live) are NOT retried unless the body passes republish: true; without it the request fails with code UNCONFIRMED_REQUIRES_REPUBLISH. Check the account before passing republish: true \u2014 retrying an unconfirmed platform can duplicate the post.",
+        "description": "Re-queues this post's failed platforms. Platforms in status 'unconfirmed' (the publish request may have reached the platform but its response was lost \u2014 the post may already be live) are NOT retried unless the body passes republish: true; without it the request fails with code UNCONFIRMED_REQUIRES_REPUBLISH. Check the account before passing republish: true \u2014 retrying an unconfirmed platform can duplicate the post. Requires a role that can publish (owner, admin, approver); contributors and viewers get 403 FORBIDDEN.",
         "requestBody": {
           "required": false,
           "content": {
@@ -2216,7 +2216,7 @@
           "Posts"
         ],
         "summary": "Publish as Story",
-        "description": "Publish the post's first media as a Facebook or Instagram Story (disappears after 24h). The post must have media and a published platform entry for the target platform. Stories publish inline and are single-flight per post+platform: a second call within ~2 minutes of a success returns **409** `code: \"STORY_IN_PROGRESS\"`. If the request reached the platform but the response was lost, the call returns **422** `code: \"STORY_UNCONFIRMED\"` and stays locked for the same window \u2014 check the account before trying again, the story may already be live. Each attempt is recorded in the activity log (post.story_published / post.story_failed).",
+        "description": "Publish the post's first media as a Facebook or Instagram Story (disappears after 24h). The post must have media and a published platform entry for the target platform. Stories publish inline and are single-flight per post+platform: a second call within ~2 minutes of a success returns **409** `code: \"STORY_IN_PROGRESS\"`. If the request reached the platform but the response was lost, the call returns **422** `code: \"STORY_UNCONFIRMED\"` and stays locked for the same window \u2014 check the account before trying again, the story may already be live. Each attempt is recorded in the activity log (post.story_published / post.story_failed). Requires a role that can publish (owner, admin, approver); contributors and viewers get 403 FORBIDDEN.",
         "parameters": [
           {
             "name": "id",
@@ -2369,7 +2369,7 @@
             ]
           }
         ],
-        "description": "`retry` re-sends only platforms in status 'failed' that still have retry budget (retryCount < maxRetries), skips posts already mid-publish, and never touches 'unconfirmed' platforms (use the single retry endpoint with republish: true). `delete` skips posts that are 'publishing' or 'processing' and reports them in `skippedInProgress`."
+        "description": "`retry` re-sends only platforms in status 'failed' that still have retry budget (retryCount < maxRetries), skips posts already mid-publish, and never touches 'unconfirmed' platforms (use the single retry endpoint with republish: true). `delete` skips posts that are 'publishing' or 'processing' and reports them in `skippedInProgress`. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN."
       }
     },
     "/api/posts/queue-slot": {
@@ -2521,7 +2521,7 @@
           "Channels"
         ],
         "summary": "Disconnect channel",
-        "description": "Wipes the stored tokens so the account can no longer publish; published posts and their metrics are kept. Requires a role that can manage channels (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
+        "description": "Wipes the stored tokens so the account can no longer publish; published posts and their metrics are kept. Requires a role that can manage channels (owner, admin, approver); contributors and viewers get 403 FORBIDDEN.",
         "parameters": [
           {
             "name": "id",
@@ -2549,7 +2549,7 @@
           "Channels"
         ],
         "summary": "Update channel settings",
-        "description": "Per-channel opt-ins. Both switches apply to X channels only, where each read is billed: `metricsSyncEnabled` turns on analytics sync for the channel (off by default; synced at most once every 7 days), and `inboxSyncEnabled` turns on inbox reads (comments and DMs). Fields not sent are left as they are; a body with neither field is rejected with 400. Requires a role that can manage channels (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
+        "description": "Per-channel opt-ins. Both switches apply to X channels only, where each read is billed: `metricsSyncEnabled` turns on analytics sync for the channel (off by default; synced at most once every 7 days), and `inboxSyncEnabled` turns on inbox reads (comments and DMs). Fields not sent are left as they are; a body with neither field is rejected with 400. Requires a role that can manage channels (owner, admin, approver); contributors and viewers get 403 FORBIDDEN.",
         "parameters": [
           {
             "name": "id",
@@ -2914,7 +2914,7 @@
           "Media"
         ],
         "summary": "Upload media (single request)",
-        "description": "Upload an image or video file in one multipart request (server relays to storage). Max 100MB (for videos up to 1GB use the multipart endpoints: /api/media/multipart/create \u2192 PUT each part \u2192 /api/media/multipart/complete). Formats: JPEG, PNG, WebP, GIF, MP4, QuickTime, WebM. Browser clients should prefer the faster direct-to-storage flow: POST /api/media/presign then PUT the file to the returned URL then POST /api/media/finalize. MP4/QuickTime files must be complete (contain a moov atom) \u2014 a video captured mid-encode or truncated in transit is rejected with 400 at upload instead of failing at publish time. The same check runs on /api/media/finalize (via ranged reads) and on remote URL imports.",
+        "description": "Upload an image or video file in one multipart request (server relays to storage). Max 100MB (for videos up to 1GB use the multipart endpoints: /api/media/multipart/create \u2192 PUT each part \u2192 /api/media/multipart/complete). Formats: JPEG, PNG, WebP, GIF, MP4, QuickTime, WebM. Browser clients should prefer the faster direct-to-storage flow: POST /api/media/presign then PUT the file to the returned URL then POST /api/media/finalize. MP4/QuickTime files must be complete (contain a moov atom) \u2014 a video captured mid-encode or truncated in transit is rejected with 400 at upload instead of failing at publish time. The same check runs on /api/media/finalize (via ranged reads) and on remote URL imports. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -2954,7 +2954,7 @@
           "Media"
         ],
         "summary": "Get a direct upload URL",
-        "description": "Step 1 of the direct-to-storage upload. Checks the storage quota and returns a presigned PUT URL plus the object key. PUT the file (max 100MB \u2014 videos up to 1GB go through the multipart endpoints instead) to `uploadUrl` with a matching `Content-Type` header, then call POST /api/media/finalize.",
+        "description": "Step 1 of the direct-to-storage upload. Checks the storage quota and returns a presigned PUT URL plus the object key. PUT the file (max 100MB \u2014 videos up to 1GB go through the multipart endpoints instead) to `uploadUrl` with a matching `Content-Type` header, then call POST /api/media/finalize. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "requestBody": {
           "required": true,
           "content": {
@@ -3027,7 +3027,7 @@
           "Media"
         ],
         "summary": "Finalize a direct upload",
-        "description": "Step 2 of the direct-to-storage upload. After the file is PUT to the presigned URL, this records the media file and queues thumbnail generation. The stored object is verified server-side (existence, size, magic bytes) before the record is created.",
+        "description": "Step 2 of the direct-to-storage upload. After the file is PUT to the presigned URL, this records the media file and queues thumbnail generation. The stored object is verified server-side (existence, size, magic bytes) before the record is created. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "requestBody": {
           "required": true,
           "content": {
@@ -3133,6 +3133,7 @@
           "Media"
         ],
         "summary": "Delete media file",
+        "description": "Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "parameters": [
           {
             "name": "id",
@@ -3165,7 +3166,7 @@
           "Media"
         ],
         "summary": "Set alt text",
-        "description": "Sets the accessibility description of a media file. Alt text belongs to the file, so one value covers every post that reuses it. It is sent wherever the destination accepts a description: Instagram (feed photos and carousel images), LinkedIn (single and multi-image posts) and Bluesky. Video files accept a value but no platform receives it yet. Send `null` or an empty string to clear. Trimmed to 1000 characters. Rolling out: until it is switched on for your account, this endpoint answers 403 FEATURE_DISABLED.",
+        "description": "Sets the accessibility description of a media file. Alt text belongs to the file, so one value covers every post that reuses it. It is sent wherever the destination accepts a description: Instagram (feed photos and carousel images), LinkedIn (single and multi-image posts) and Bluesky. Video files accept a value but no platform receives it yet. Send `null` or an empty string to clear. Trimmed to 1000 characters. Rolling out: until it is switched on for your account, this endpoint answers 403 FEATURE_DISABLED. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "parameters": [
           {
             "name": "id",
@@ -3296,6 +3297,7 @@
           "Media"
         ],
         "summary": "Set media labels",
+        "description": "Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "parameters": [
           {
             "name": "id",
@@ -3709,7 +3711,7 @@
           "Analytics"
         ],
         "summary": "Trigger metrics sync",
-        "description": "Queue a background job to fetch latest metrics from all platforms and invalidate analytics cache.",
+        "description": "Queue a background job to fetch latest metrics from all platforms and invalidate analytics cache. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "responses": {
           "200": {
             "description": "Queued"
@@ -4052,6 +4054,7 @@
           "Labels"
         ],
         "summary": "Create label",
+        "description": "Counts against the org's label quota (every type together). Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -4105,6 +4108,7 @@
           "Labels"
         ],
         "summary": "Update label",
+        "description": "At least one of `name` or `color` is required. `type` cannot be changed. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "parameters": [
           {
             "name": "id",
@@ -4154,6 +4158,7 @@
           "Labels"
         ],
         "summary": "Delete label",
+        "description": "Detaches the label from every post and media file that carries it; the posts and files themselves are kept. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "parameters": [
           {
             "name": "id",
@@ -4490,6 +4495,7 @@
           "Channel Sets"
         ],
         "summary": "Create channel set",
+        "description": "Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -4542,6 +4548,7 @@
           "Channel Sets"
         ],
         "summary": "Update channel set",
+        "description": "Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "parameters": [
           {
             "name": "id",
@@ -4598,6 +4605,7 @@
           "Channel Sets"
         ],
         "summary": "Delete channel set",
+        "description": "Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "parameters": [
           {
             "name": "id",
@@ -4630,7 +4638,7 @@
           "Media"
         ],
         "summary": "Start multipart upload (large videos, up to 1GB)",
-        "description": "Step 1 of the chunked direct-to-storage upload for large files. Returns an uploadId, the fixed part size (10MB), and a presigned PUT URL per part. Upload each 10MB slice of the file to its URL (a failed part can be retried on its own \u2014 a network drop never restarts the whole file), collect each response's ETag header, then call /api/media/multipart/complete.",
+        "description": "Step 1 of the chunked direct-to-storage upload for large files. Returns an uploadId, the fixed part size (10MB), and a presigned PUT URL per part. Upload each 10MB slice of the file to its URL (a failed part can be retried on its own \u2014 a network drop never restarts the whole file), collect each response's ETag header, then call /api/media/multipart/complete. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -4681,7 +4689,7 @@
           "Media"
         ],
         "summary": "Complete multipart upload",
-        "description": "Step 2: assembles the uploaded parts, verifies the stored object (existence, size, content magic bytes, storage quota) and records the media file. Same verification and response shape as /api/media/finalize.",
+        "description": "Step 2: assembles the uploaded parts, verifies the stored object (existence, size, content magic bytes, storage quota) and records the media file. Same verification and response shape as /api/media/finalize. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -4773,7 +4781,7 @@
           "Media"
         ],
         "summary": "Abort multipart upload",
-        "description": "Cancel an in-progress chunked upload and free its stored parts.",
+        "description": "Cancel an in-progress chunked upload and free its stored parts. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -5261,7 +5269,7 @@
           "Posts"
         ],
         "summary": "Revoke the post's review link",
-        "description": "Idempotent. Returns { success: true, revoked } where revoked says whether a link existed. Rolling out: until it is switched on for your account, this endpoint answers 403 FEATURE_DISABLED.",
+        "description": "Idempotent. Returns { success: true, revoked } where revoked says whether a link existed. Rolling out: until it is switched on for your account, this endpoint answers 403 FEATURE_DISABLED. Requires a role that can edit posts (owner, admin, approver, contributor); viewers get 403 FORBIDDEN.",
         "parameters": [
           {
             "name": "id",
