@@ -1765,6 +1765,11 @@
                     ],
                     "default": null,
                     "description": "Per-post override for link tracking (bulkpubli.sh). `true` forces links in this post to be shortened and their clicks counted, `false` forces them to publish as written, and `null` (the default) inherits the organization's Link Tracking setting. Shortening happens at publish time, per channel, so two accounts on the same platform get distinct codes; it is skipped for a channel when the rewrite would push the post past that platform's character limit."
+                  },
+                  "ifUnmodifiedSince": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Optional precondition: the post's `updatedAt` as you last read it, ISO 8601 with milliseconds. The edit is refused with 409 CONFLICT if somebody else has changed the post since then, instead of overwriting their version. Omit it for the previous behaviour, last write wins. Milliseconds matter \u2014 two edits in the same second are distinct, which is why this is a body field and not the If-Unmodified-Since header."
                   }
                 }
               }
@@ -1777,6 +1782,9 @@
           },
           "400": {
             "description": "Validation error"
+          },
+          "409": {
+            "description": "Somebody else changed the post after the ifUnmodifiedSince you sent. The error body carries the post's current updatedAt."
           }
         },
         "operationId": "updatePost",
