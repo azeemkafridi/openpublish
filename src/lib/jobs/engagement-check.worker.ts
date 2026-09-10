@@ -20,8 +20,7 @@ const logger = createLogger('engagement-check-worker');
 const TOTAL_CHECKS = ENGAGEMENT_CHECK_DELAYS_MS.length;
 
 // Small pause between the metrics read and the comment/repost write, so the
-// action doesn't land in the same instant as the read (bot-pattern hygiene;
-// Postiz does the same before its plug actions).
+// action doesn't land in the same instant as the read (bot-pattern hygiene).
 const ACTION_DELAY_MS = 2000;
 
 /**

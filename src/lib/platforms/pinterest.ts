@@ -480,8 +480,8 @@ export class PinterestHandler extends PlatformHandler {
    * the numeric media_id the pin must reference. Pinterest v5 requires
    * register (POST /media) → upload bytes to the returned S3 upload_url → poll
    * GET /media/{id} until status='succeeded'; a raw media URL is not accepted.
-   * Faithful to the documented flow + the Postiz reference — verify against the live
-   * Pinterest API before relying on it in production.
+   * Faithful to the documented flow — verify against the live Pinterest API before
+   * relying on it in production.
    */
   private async uploadVideoMedia(
     videoUrl: string,

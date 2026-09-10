@@ -169,7 +169,7 @@ export async function addMetricsSyncJob(organizationId?: number) {
 }
 
 // Auto-plug/auto-repost engagement checks: a bounded set of delayed per-post jobs
-// scheduled at publish time (Postiz-style), instead of piggybacking on the org-wide
+// scheduled at publish time, instead of piggybacking on the org-wide
 // metrics sweep. Each check reads ONLY that post's metrics, so API cost is
 // O(opted-in posts × 4) — never a recurring poll. Checks stop early once both
 // automations have fired (see engagement-check.worker.ts).

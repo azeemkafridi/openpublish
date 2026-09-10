@@ -29,8 +29,8 @@ export const postStatusEnum = pgEnum('post_status', [
   'processing',
 ]);
 
-// Approval is ORTHOGONAL to the publish lifecycle (Postiz's approvedSubmitForOrder
-// pattern): a post can be `scheduled` yet held from the reconciler while approval
+// Approval is ORTHOGONAL to the publish lifecycle: a post can be `scheduled`
+// yet held from the reconciler while approval
 // is `pending`/`rejected`. Keeping this out of post_status avoids touching every
 // status switch across the app + SDKs.
 export const postApprovalStatusEnum = pgEnum('post_approval_status', [
@@ -110,8 +110,8 @@ export const user = pgTable('user', {
   // VESTIGIAL — do not read for entitlements. The authoritative plan lives on
   // organizations.plan (quota checks go through getOrgPlan); this column is
   // never updated by the Polar webhook and stays 'free' for paying customers.
-  // Kept only because better-auth's user shape references it. See the Postiz
-  // upstream audit (2026-08-15) for the drift risk that motivated this note.
+  // Kept only because better-auth's user shape references it; an upstream audit
+  // (2026-08-15) flagged the drift risk that motivated this note.
   plan: userPlanEnum('plan').notNull().default('free'),
   role: text('role').notNull().default('user'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

@@ -411,11 +411,11 @@ export class RedditHandler extends PlatformHandler {
   /**
    * Upload a single media file to Reddit and return its hosted asset URL.
    *
-   * Ports Postiz's uploadFileToReddit: register the asset (multipart) to get an
-   * S3 form, fetch the media bytes, then POST every returned field + the file
-   * (LAST) to the S3 action URL. The asset URL is in the <Location> tag of the
-   * S3 XML response. Faithful to the Reddit flow + the Postiz reference — verify
-   * against the live API before relying on it in production.
+   * Reddit's asset flow: register the asset (multipart) to get an S3 form, fetch
+   * the media bytes, then POST every returned field + the file (LAST) to the S3
+   * action URL. The asset URL is in the <Location> tag of the S3 XML response.
+   * Faithful to the documented flow — verify against the live API before relying
+   * on it in production.
    */
   private async uploadAsset(
     accessToken: string,
@@ -517,7 +517,7 @@ export class RedditHandler extends PlatformHandler {
 
   /**
    * Search public subreddits by name for the composer's subreddit picker.
-   * Uses the same endpoint as the Postiz reference; needs the 'read' scope we hold.
+   * Uses Reddit's public subreddit search endpoint; needs the 'read' scope we hold.
    */
   async searchSubreddits(
     accessToken: string,

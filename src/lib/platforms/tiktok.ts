@@ -806,7 +806,7 @@ export class TikTokHandler extends PlatformHandler {
    * id by re-querying the publish status. A post can reach PUBLISH_COMPLETE before
    * TikTok exposes `publicaly_available_post_id`, leaving us with a publish_id that
    * /video/query/ can't read. Returns null when no public id exists yet (e.g. private
-   * post) or the publish_id has expired. Mirrors Postiz's postAnalytics re-resolution.
+   * post) or the publish_id has expired.
    */
   async resolvePublishId(
     channel: ChannelData,
