@@ -384,8 +384,9 @@ export function validatePlatformContentShape(
 
 /**
  * The privacy levels TikTok's Content Posting API accepts, as documented in
- * the openapi spec. SEND_TO_USER_INBOX is the unaudited-app draft-upload
- * stopgap. The composer UI only offers what creator_info returns for the
+ * the openapi spec. SEND_TO_USER_INBOX is a publish STATUS TikTok reports for
+ * an unaudited app's inbox upload, not a privacy level; accepting it here
+ * only produced a post that failed at publish. The composer UI only offers what creator_info returns for the
  * account, but API clients bypass the UI — an unknown value (seen in prod:
  * "PUBLIC") reaches TikTok verbatim and fails the whole post at publish time
  * with "The request post info is empty or incorrect".
@@ -538,6 +539,23 @@ export function validatePlatformSpecificShape(platformSpecific: unknown): string
       `platformSpecific.${platform}.${field} must be one of: ${[...values].join(', ')}` +
       (hint ? `. Did you mean "${hint}"?` : '')
     );
+  }
+
+  // Tumblr: tags are a list of strings (or the comma-separated string Tumblr's
+  // own API uses). Anything else used to be accepted here and fail at publish.
+  const tumblrOpts = (platformSpecific as Record<string, unknown>).tumblr;
+  if (tumblrOpts && typeof tumblrOpts === 'object' && !Array.isArray(tumblrOpts)) {
+    const entries: Array<[string, unknown]> = [['tumblr', tumblrOpts]];
+    for (const [k, v] of Object.entries(tumblrOpts)) {
+      if (/^\d+$/.test(k) && v && typeof v === 'object' && !Array.isArray(v)) entries.push([`tumblr.${k}`, v]);
+    }
+    for (const [path, opts] of entries) {
+      const tags = (opts as Record<string, unknown>).tags;
+      if (tags === undefined || tags === null || typeof tags === 'string') continue;
+      if (!Array.isArray(tags) || tags.some((t) => typeof t !== 'string')) {
+        return `platformSpecific.${path}.tags must be an array of strings`;
+      }
+    }
   }
 
   for (const { platform, field } of PLATFORM_SPECIFIC_URL_FIELDS) {

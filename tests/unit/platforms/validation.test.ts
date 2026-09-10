@@ -479,9 +479,22 @@ describe('validatePlatformSpecificShape', () => {
     expect(validatePlatformSpecificShape(null)).toBeNull();
     expect(validatePlatformSpecificShape({})).toBeNull();
     expect(validatePlatformSpecificShape({ youtube: { title: 'T' } })).toBeNull();
-    for (const level of ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY', 'SEND_TO_USER_INBOX']) {
+    for (const level of ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY']) {
       expect(validatePlatformSpecificShape({ tiktok: { privacyLevel: level } })).toBeNull();
     }
+  });
+
+  it('requires Tumblr tags to be strings, in an array or comma-separated', () => {
+    expect(validatePlatformSpecificShape({ tumblr: { tags: ['a', 'b'] } })).toBeNull();
+    expect(validatePlatformSpecificShape({ tumblr: { tags: 'a,b' } })).toBeNull();
+    expect(validatePlatformSpecificShape({ tumblr: { 7: { tags: ['a'] } } })).toBeNull();
+    expect(validatePlatformSpecificShape({ tumblr: { tags: 42 } })).toMatch(/tumblr\.tags must be an array of strings/);
+    expect(validatePlatformSpecificShape({ tumblr: { tags: [1] } })).toMatch(/tumblr\.tags/);
+    expect(validatePlatformSpecificShape({ tumblr: { 7: { tags: { a: 1 } } } })).toMatch(/tumblr\.7\.tags/);
+  });
+
+  it('rejects SEND_TO_USER_INBOX: a TikTok publish status, not a privacy level', () => {
+    expect(validatePlatformSpecificShape({ tiktok: { privacyLevel: 'SEND_TO_USER_INBOX' } })).toMatch(/privacyLevel/);
   });
 
   it('rejects an unknown TikTok privacy level with a did-you-mean hint (prod regression: "PUBLIC")', () => {

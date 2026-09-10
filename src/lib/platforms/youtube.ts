@@ -209,11 +209,14 @@ export class YouTubeHandler extends PlatformHandler {
     let description = content;
 
     if (isShort) {
+      // Keep the tag AND the limits: a 100-char title used to lose the tag to
+      // the slice, and a description near 5000 grew past it and was rejected.
+      const TAG = ' #Shorts';
       if (!title.includes('#Shorts')) {
-        title = `${title} #Shorts`.slice(0, 100);
+        title = `${title.length + TAG.length > 100 ? title.slice(0, 100 - TAG.length).trimEnd() : title}${TAG}`;
       }
-      if (!description.includes('#Shorts')) {
-        description = `${description} #Shorts`;
+      if (!description.includes('#Shorts') && description.length + TAG.length <= 5000) {
+        description = `${description}${TAG}`;
       }
     }
 
@@ -377,7 +380,7 @@ export class YouTubeHandler extends PlatformHandler {
           if (thumbRes.ok) {
             const thumbBuffer = Buffer.from(await thumbRes.arrayBuffer());
             const thumbContentType = thumbRes.headers.get('content-type') || 'image/jpeg';
-            await fetch(
+            const thumbSet = await fetch(
               `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}&uploadType=media`,
               {
                 method: 'POST',
@@ -388,7 +391,14 @@ export class YouTubeHandler extends PlatformHandler {
                 body: thumbBuffer,
               },
             );
-            this.logger.info({ videoId }, 'YouTube thumbnail uploaded');
+            if (thumbSet.ok) {
+              this.logger.info({ videoId }, 'YouTube thumbnail uploaded');
+            } else {
+              // A channel not verified for custom thumbnails always 403s here;
+              // the video is fine, but say so instead of logging success.
+              const errText = await thumbSet.text().catch(() => '');
+              this.logger.warn({ videoId, status: thumbSet.status, body: errText.slice(0, 200) }, 'YouTube thumbnail was not applied');
+            }
           }
         } catch (error) {
           // Don't fail the video upload if thumbnail fails
@@ -467,9 +477,12 @@ export class YouTubeHandler extends PlatformHandler {
       return { status: 'processing', message: `Upload status: ${videoStatus.uploadStatus}` };
     } catch (error) {
       // Transient errors propagate so the status-check worker retries;
-      // only a 4xx rejection is terminal (see isTransientApiError).
-      if (this.isTransientApiError(error)) throw error;
+      // only a 4xx rejection is terminal (see isTransientApiError). A 401
+      // (hourly Google token lapsed) or 403 (quotaExceeded right after a
+      // 1600-unit upload) says nothing about the video, which is live —
+      // returning 'failed' offered a Retry that re-uploaded a duplicate.
       const message = error instanceof Error ? error.message : String(error);
+      if (this.isTransientApiError(error) || /\((401|403)\)/.test(message)) throw error;
       this.logger.error({ videoId, error: message }, 'YouTube status check failed');
       return { status: 'failed', message };
     }
@@ -604,6 +617,10 @@ export class YouTubeHandler extends PlatformHandler {
       };
     } catch (error) {
       this.logger.error({ error }, 'Failed to refresh YouTube token');
+      // A 5xx, 429 or network failure says nothing about the refresh token;
+      // returning null for it read as "cannot be refreshed" and flagged
+      // reconnect after one blip. Only a rejection returns null.
+      if (this.isTransientRefreshFailure(error)) throw error;
       return null;
     }
   }

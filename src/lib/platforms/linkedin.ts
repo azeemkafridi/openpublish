@@ -231,6 +231,10 @@ export class LinkedInHandler extends PlatformHandler {
       };
     } catch (error) {
       this.logger.error({ error, isOrg }, 'Failed to refresh LinkedIn token');
+      // A 5xx, 429 or network failure says nothing about the refresh token;
+      // returning null for it read as "cannot be refreshed" and flagged
+      // reconnect after one blip. Only a rejection returns null.
+      if (this.isTransientRefreshFailure(error)) throw error;
       return null;
     }
   }
@@ -764,33 +768,38 @@ export class LinkedInHandler extends PlatformHandler {
       const images = post.mediaFiles.filter((f) => f.mimeType.startsWith('image/'));
       const videos = post.mediaFiles.filter((f) => f.mimeType.startsWith('video/'));
 
+      // Every branch is awaited: a `return this.publishX()` without it let a
+      // rejected upload escape this catch, so publishPost REJECTED instead of
+      // returning { success: false, error }. The publish path only tries a
+      // token refresh on a RETURNED error, so a 401 during an image or video
+      // upload flagged the channel for reconnect with a valid refresh token.
       // Article post
       if (post.postType === 'article') {
-        return this.publishArticle(post, accessToken, authorUrn);
+        return await this.publishArticle(post, accessToken, authorUrn);
       }
 
       // PDF carousel
       if (post.postType === 'pdf_carousel' && images.length >= 2) {
-        return this.publishPdfCarousel(post, accessToken, authorUrn, images);
+        return await this.publishPdfCarousel(post, accessToken, authorUrn, images);
       }
 
       // Video post
       if (videos.length > 0) {
-        return this.publishVideo(post, accessToken, authorUrn, videos[0]);
+        return await this.publishVideo(post, accessToken, authorUrn, videos[0]);
       }
 
       // Multi-image post
       if (images.length >= 2) {
-        return this.publishMultiImage(post, accessToken, authorUrn, images);
+        return await this.publishMultiImage(post, accessToken, authorUrn, images);
       }
 
       // Single image post
       if (images.length === 1) {
-        return this.publishSingleImage(post, accessToken, authorUrn, images[0]);
+        return await this.publishSingleImage(post, accessToken, authorUrn, images[0]);
       }
 
       // Text-only post
-      return this.publishText(post, accessToken, authorUrn);
+      return await this.publishText(post, accessToken, authorUrn);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error({ error: message }, 'LinkedIn publish failed');
@@ -942,7 +951,13 @@ export class LinkedInHandler extends PlatformHandler {
     let thumbnailUrn: string | undefined;
     const image = post.mediaFiles.find((f) => f.mimeType.startsWith('image/'));
     if (image) {
-      thumbnailUrn = await this.uploadImage(accessToken, authorUrn, image);
+      // Best-effort, like the link-preview card: a thumbnail that fails to
+      // upload should not fail the article post.
+      try {
+        thumbnailUrn = await this.uploadImage(accessToken, authorUrn, image);
+      } catch (error) {
+        this.logger.warn({ error: error instanceof Error ? error.message : String(error) }, 'LinkedIn article thumbnail upload failed; posting without it');
+      }
     }
 
     return this.createPost(accessToken, {

@@ -229,7 +229,9 @@ export class TikTokHandler extends PlatformHandler {
     });
 
     return {
-      accessToken: tokenData.access_token,
+      // TikTok answers some token errors with HTTP 200 and an error body;
+      // without this guard the caller encrypted `undefined` and threw.
+      accessToken: this.requireOAuthField(tokenData.access_token, 'access_token'),
       refreshToken: tokenData.refresh_token,
       expiresIn: tokenData.expires_in,
       openId: tokenData.open_id,
@@ -504,7 +506,7 @@ export class TikTokHandler extends PlatformHandler {
           post_mode: 'DIRECT_POST',
           post_info: {
             ...postInfo,
-            ...(post.content ? { title: post.content.slice(0, 90), description: post.content } : {}),
+            ...(post.content ? { title: Array.from(post.content).slice(0, 90).join(''), description: post.content } : {}),
           },
           source_info: {
             source: 'PULL_FROM_URL',
@@ -632,9 +634,11 @@ export class TikTokHandler extends PlatformHandler {
     } catch (error) {
       // Transient errors (5xx/429/network) propagate so the status-check
       // worker retries — the upload may still be processing or even already
-      // live. Only a 4xx rejection is terminal here.
-      if (this.isTransientApiError(error)) throw error;
+      // live. Only a 4xx rejection is terminal here; a 401 is about our
+      // token, not the upload, so it propagates too rather than marking a
+      // possibly-live post failed.
       const message = error instanceof Error ? error.message : String(error);
+      if (this.isTransientApiError(error) || /\(401\)/.test(message)) throw error;
       this.logger.error(
         { error: message, publishId },
         'Failed to check TikTok publish status',
@@ -859,13 +863,19 @@ export class TikTokHandler extends PlatformHandler {
       });
 
       return {
-        accessToken: tokenData.access_token,
+        // TikTok answers some token errors with HTTP 200 and an error body;
+        // without this guard the caller encrypted `undefined` and threw.
+        accessToken: this.requireOAuthField(tokenData.access_token, 'access_token'),
         refreshToken: tokenData.refresh_token,
         expiresIn: tokenData.expires_in,
         openId: tokenData.open_id,
       };
     } catch (error) {
       this.logger.error({ error }, 'Failed to refresh TikTok token');
+      // A 5xx, 429 or network failure says nothing about the refresh token;
+      // returning null for it read as "cannot be refreshed" and flagged
+      // reconnect after one blip. Only a rejection returns null.
+      if (this.isTransientRefreshFailure(error)) throw error;
       return null;
     }
   }

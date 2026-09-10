@@ -70,7 +70,7 @@ interface BlueskyBlob {
 
 interface BlueskyFacet {
   index: { byteStart: number; byteEnd: number };
-  features: Array<{ $type: string; uri?: string; did?: string }>;
+  features: Array<{ $type: string; uri?: string; did?: string; tag?: string }>;
 }
 
 export class BlueskyHandler extends PlatformHandler {
@@ -269,20 +269,25 @@ export class BlueskyHandler extends PlatformHandler {
           // lp.image is the og:image scraped from an arbitrary page the user
           // linked — attacker-controlled. Guarded fetch only (second-order SSRF).
           const imgRes = await this.fetchRemoteMedia(lp.image);
-          if (imgRes.ok) {
-            const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+          const thumbType = imgRes.headers.get('content-type') || 'image/jpeg';
+          // The external-embed lexicon caps `thumb` at 1 MB and image/*; an
+          // oversized og:image made createRecord reject the whole post.
+          const imgBuffer = imgRes.ok ? Buffer.from(await imgRes.arrayBuffer()) : null;
+          if (imgBuffer && imgBuffer.length <= 1_000_000 && thumbType.startsWith('image/')) {
             const response = await this.fetchWithFile(
               `${apiBase}/com.atproto.repo.uploadBlob`,
               imgBuffer,
               {
                 Authorization: `Bearer ${accessToken}`,
-                'Content-Type': imgRes.headers.get('content-type') || 'image/jpeg',
+                'Content-Type': thumbType,
               },
             );
             if (response.ok) {
               const blobData = await response.json() as { blob: BlueskyBlob };
               thumbBlob = blobData.blob;
             }
+          } else if (imgBuffer) {
+            this.logger.debug({ bytes: imgBuffer.length, thumbType }, 'Skipping link-card thumbnail outside Bluesky limits');
           }
         } catch {
           // Thumbnail fetch failed, proceed without it
@@ -523,6 +528,10 @@ export class BlueskyHandler extends PlatformHandler {
       };
     } catch (error) {
       this.logger.error({ error }, 'Failed to refresh Bluesky session');
+      // A 5xx, 429 or network failure says nothing about the refresh token;
+      // returning null for it read as "cannot be refreshed" and flagged
+      // reconnect after one blip. Only a rejection returns null.
+      if (this.isTransientRefreshFailure(error)) throw error;
       return null;
     }
   }
@@ -625,7 +634,10 @@ export class BlueskyHandler extends PlatformHandler {
     let match: RegExpExecArray | null;
 
     while ((match = urlRegex.exec(text)) !== null) {
-      const url = match[0];
+      // Sentence punctuation after a link is not part of it (same rule as
+      // extractFirstUrl); it used to end up in both the range and the uri.
+      const url = match[0].replace(/[.,;:!?)]+$/, '');
+      if (!url) continue;
       const byteStart = encoder.encode(text.slice(0, match.index)).length;
       const byteEnd = byteStart + encoder.encode(url).length;
 
@@ -639,10 +651,13 @@ export class BlueskyHandler extends PlatformHandler {
     const mentionRegex = /(^|[\s(])@([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?/g;
 
     while ((match = mentionRegex.exec(text)) !== null) {
-      // The match may include a leading space/paren — the mention starts at @
+      // The match may include a leading space/paren — the mention starts at @.
+      // Group 1 is that prefix; trimStart() only stripped whitespace, so a
+      // parenthesised mention kept the "(" in the range and the "@" in the
+      // handle sent to resolveHandle.
       const fullMatch = match[0];
-      const prefixLen = fullMatch.length - fullMatch.trimStart().length;
-      const mention = fullMatch.trimStart(); // starts with @
+      const prefixLen = match[1].length;
+      const mention = fullMatch.slice(prefixLen); // starts with @
       const handle = mention.slice(1); // remove @
 
       const mentionStart = match.index + prefixLen;
@@ -652,6 +667,20 @@ export class BlueskyHandler extends PlatformHandler {
       facets.push({
         index: { byteStart, byteEnd },
         features: [{ $type: 'app.bsky.richtext.facet#mention', did: handle }],
+      });
+    }
+
+    // Detect #hashtags — without a tag facet they render as plain text and
+    // never reach Bluesky's tag feeds.
+    const tagRegex = /(^|\s)#([\p{L}\p{N}_]+)/gu;
+    while ((match = tagRegex.exec(text)) !== null) {
+      const tagStart = match.index + match[1].length;
+      const tagText = `#${match[2]}`;
+      const byteStart = encoder.encode(text.slice(0, tagStart)).length;
+      const byteEnd = byteStart + encoder.encode(tagText).length;
+      facets.push({
+        index: { byteStart, byteEnd },
+        features: [{ $type: 'app.bsky.richtext.facet#tag', tag: match[2] }],
       });
     }
 

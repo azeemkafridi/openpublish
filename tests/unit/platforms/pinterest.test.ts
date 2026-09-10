@@ -187,7 +187,10 @@ describe('PinterestHandler', () => {
       expect(result.success).toBe(true);
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.carousel_data_json).toBeDefined();
+      // v5 multi-image pin; the old carousel_data_json shape published one image.
+      expect(body.carousel_data_json).toBeUndefined();
+      expect(body.media_source.source_type).toBe('multiple_image_urls');
+      expect(body.media_source.items.map((i: any) => i.url)).toEqual(['https://a.jpg', 'https://b.jpg', 'https://c.jpg']);
     });
 
     it('returns error for carousel with fewer than 2 images', async () => {

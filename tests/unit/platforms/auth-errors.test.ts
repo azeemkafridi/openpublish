@@ -26,6 +26,8 @@ describe('isReconnectError', () => {
       ['FB friendly 190', 'Access token expired. Please reconnect your Facebook account.'],
       ['OAuthException', 'instagram API error (400): OAuthException: The access token could not be decrypted'],
       ['revoked token', 'threads API error (400): REVOKED_ACCESS_TOKEN'],
+      ['Meta 190 invalid OAuth', 'instagram API error (400): Invalid OAuth 2.0 Access Token'],
+      ['Meta 190 cannot parse', 'threads API error (400): Invalid OAuth access token - Cannot parse access token'],
       // TikTok
       ['TikTok token invalid', 'tiktok API error: access_token_invalid'],
       ['Bluesky expired', 'bluesky API error (400): Token has expired'],

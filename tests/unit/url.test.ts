@@ -171,6 +171,14 @@ describe('platformLength', () => {
     expect(platformLength(text, 'x')).toBe('See '.length + URL_CHAR_WEIGHT + 1);
   });
 
+  it('counts CJK and emoji as 2 on x, as X does', () => {
+    expect(platformLength('日本語', 'x')).toBe(6);
+    expect(platformLength('hi 😀', 'x')).toBe(5);
+    expect(platformLength('日本語', 'mastodon')).toBe(3);
+    // A URL is still 23 regardless of its script.
+    expect(platformLength('見て https://例え.jp/道', 'x')).toBe(4 + 1 + URL_CHAR_WEIGHT);
+  });
+
   it('uses plain length on non-weighted platforms', () => {
     const text = `Read this: ${longUrl}`;
     expect(platformLength(text, 'linkedin')).toBe(text.length);

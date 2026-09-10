@@ -197,6 +197,17 @@ describe('FacebookHandler', () => {
       expect(mockFetch.mock.calls[0][0]).toContain('/page123/videos');
     });
 
+    it('fails a multi-photo post when one upload is rejected, instead of publishing a subset', async () => {
+      mockFetch.mockResolvedValueOnce(mockFetchOk({ id: 'photo_a' }));
+      mockFetch.mockResolvedValueOnce(mockFetchError(400, { error: { code: 324, message: 'Missing or invalid image file' } }));
+
+      const post = makePost({ mediaFiles: [makeImage('https://cdn.test/1.jpg'), makeImage('https://cdn.test/2.jpg')] });
+      const result = await handler.publishPost(post, makeChannel());
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/1 of 2 photos/);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
     it('publishes multiple photos (2 unpublished uploads + 1 feed post)', async () => {
       // Upload photo 1
       mockFetch.mockResolvedValueOnce(mockFetchOk({ id: 'photo_a' }));

@@ -245,8 +245,17 @@ export class GmbHandler extends PlatformHandler {
       return { success: false, error: 'No access token for Google Business account' };
     }
 
-    // Resolve full path — handles existing channels that stored "locations/{id}" without account prefix
-    const locationName = await this.resolveLocationName(channel.accountId, channel.accessToken);
+    // Resolve full path — handles existing channels that stored "locations/{id}" without account prefix.
+    // Inside its own guard: a 401 here used to reject publishPost outright,
+    // which skips the publish path's token refresh and flags reconnect.
+    let locationName: string;
+    try {
+      locationName = await this.resolveLocationName(channel.accountId, channel.accessToken);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error({ error: message }, 'GMB location lookup failed');
+      return { success: false, error: message };
+    }
 
     // Determine topic type
     let topicType = 'STANDARD';
@@ -441,6 +450,10 @@ export class GmbHandler extends PlatformHandler {
       };
     } catch (error) {
       this.logger.error({ error }, 'Failed to refresh GMB token');
+      // A 5xx, 429 or network failure says nothing about the refresh token;
+      // returning null for it read as "cannot be refreshed" and flagged
+      // reconnect after one blip. Only a rejection returns null.
+      if (this.isTransientRefreshFailure(error)) throw error;
       return null;
     }
   }

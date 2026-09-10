@@ -209,6 +209,24 @@ describe('YouTubeHandler', () => {
       expect(initBody.status.privacyStatus).toBe('public');
     });
 
+    it('keeps #Shorts inside the 100-char title and does not push a description past 5000', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => 'https://upload.youtube.com/session3' } });
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, text: async () => JSON.stringify({ id: 'short_lim' }) });
+
+      const post = makePost({
+        content: 'x'.repeat(4998),
+        postType: 'short',
+        platformSpecific: { title: 't'.repeat(100) },
+        mediaFiles: [makeVideo()],
+      });
+      const result = await handler.publishPost(post, makeChannel());
+      expect(result.success).toBe(true);
+      const initBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(initBody.snippet.title.length).toBeLessThanOrEqual(100);
+      expect(initBody.snippet.title).toMatch(/#Shorts$/);
+      expect(initBody.snippet.description.length).toBeLessThanOrEqual(5000);
+    });
+
     it('appends #Shorts for short post type', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,

@@ -255,6 +255,10 @@ export class FacebookHandler extends PlatformHandler {
       };
     } catch (error) {
       this.logger.error({ error }, 'Failed to refresh Facebook token');
+      // A 5xx, 429 or network failure says nothing about the refresh token;
+      // returning null for it read as "cannot be refreshed" and flagged
+      // reconnect after one blip. Only a rejection returns null.
+      if (this.isTransientRefreshFailure(error)) throw error;
       return null;
     }
   }
@@ -403,6 +407,14 @@ export class FacebookHandler extends PlatformHandler {
 
     if (attachedMedia.length === 0) {
       return { success: false, error: 'Failed to upload photos to Facebook' };
+    }
+    if (attachedMedia.length < photoUrls.length) {
+      // Publishing a subset and reporting success left the user with a post
+      // missing photos and no error anywhere.
+      return {
+        success: false,
+        error: `Facebook accepted ${attachedMedia.length} of ${photoUrls.length} photos; the post was not published. Check the failed image and try again.`,
+      };
     }
 
     // Step 2: Publish all photos together
@@ -700,10 +712,17 @@ export class FacebookHandler extends PlatformHandler {
           method: 'POST',
           body: videoParams,
         });
-        const videoData = (await videoRes.json()) as { id?: string };
+        const videoData = (await videoRes.json().catch(() => ({}))) as { id?: string; error?: { message?: string; code?: number } };
 
         if (!videoData.id) {
-          return { success: false, error: 'Failed to upload video for story' };
+          const message = videoData.error?.message
+            ? `facebook API error (${videoRes.status}): ${videoData.error.message}`
+            : 'Failed to upload video for story';
+          return {
+            success: false,
+            error: message,
+            authExpired: videoData.error?.code === 190,
+          };
         }
 
         // Creating the story before the video finishes processing fails, so poll

@@ -528,7 +528,20 @@ describe('TikTokHandler', () => {
       await expect(handler.checkPublishStatus(makeChannel(), 'p6')).rejects.toThrow('fetch failed');
     });
 
-    it('returns failed (terminal) on a 4xx from the status endpoint', async () => {
+    it('returns failed (terminal) on a 4xx rejection from the status endpoint', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => JSON.stringify({ error: { code: 'invalid_params', message: 'publish_id is invalid' } }),
+        headers: new Headers(),
+      });
+
+      const result = await handler.checkPublishStatus(makeChannel(), 'p7');
+      expect(result.status).toBe('failed');
+      expect(result.message).toContain('400');
+    });
+
+    it('propagates a 401 so the status worker retries instead of marking a live upload failed', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -537,9 +550,7 @@ describe('TikTokHandler', () => {
         headers: new Headers(),
       });
 
-      const result = await handler.checkPublishStatus(makeChannel(), 'p7');
-      expect(result.status).toBe('failed');
-      expect(result.message).toContain('401');
+      await expect(handler.checkPublishStatus(makeChannel(), 'p7')).rejects.toThrow('401');
     });
   });
 

@@ -176,6 +176,25 @@ describe('InstagramHandler', () => {
       expect(result.error).toContain('requires a photo or video');
     });
 
+    it('a carousel child stuck IN_PROGRESS fails as a retry, not an unknown outcome', async () => {
+      vi.useFakeTimers();
+      try {
+        const { classifyPublishError } = await import('@/lib/platforms/auth-errors');
+        mockFetch.mockResolvedValueOnce(mockFetchJson({ id: 'child_0' }));
+        mockFetch.mockResolvedValue(mockFetchJson({ id: 'child_0', status_code: 'IN_PROGRESS' }));
+
+        const pending = handler.publishPost(makePost({ postType: 'carousel', mediaFiles: [makeImage('https://a.jpg'), makeImage('https://b.jpg')] }), makeChannel());
+        await vi.advanceTimersByTimeAsync(120_000);
+        const result = await pending;
+        expect(result.success).toBe(false);
+        // Nothing was published, so this must retry rather than go unconfirmed.
+        expect(classifyPublishError(result.error!)).toBe('retry');
+      } finally {
+        vi.useRealTimers();
+        mockFetch.mockReset();
+      }
+    });
+
     it('publishes carousel with 3 images', async () => {
       const images = [makeImage('https://a.jpg'), makeImage('https://b.jpg'), makeImage('https://c.jpg')];
 

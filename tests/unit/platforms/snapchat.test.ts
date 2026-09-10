@@ -414,6 +414,8 @@ describe('SnapchatHandler publishPost', () => {
     expect(result.success).toBe(false);
     expect(result.authExpired).toBe(true);
     expect(result.error).toMatch(/reconnect/i);
+    // Must name the status so the publish path tries a token refresh first.
+    expect(result.error).toMatch(/\b401\b/);
   });
 
   it('maps a 429 to a retry message without authExpired', async () => {

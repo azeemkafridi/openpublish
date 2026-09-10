@@ -355,7 +355,7 @@ export class PinterestHandler extends PlatformHandler {
     const opts = post.platformSpecific ?? {};
     const title = (typeof opts.title === 'string' && opts.title.trim())
       ? opts.title.trim().slice(0, 100)
-      : post.content.slice(0, 100);
+      : truncateCodePoints(post.content, 100);
 
     if (!title) {
       return { error: 'Pinterest requires a pin title.' };
@@ -514,7 +514,16 @@ export class PinterestHandler extends PlatformHandler {
       }
       form.append('file', videoBlob);
 
-      const uploadResp = await fetch(reg.upload_url, { method: 'POST', body: form });
+      // Bounded like every other upload: a stalled multi-GB PUT held a
+      // publish-worker slot indefinitely.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+      let uploadResp: Response;
+      try {
+        uploadResp = await fetch(reg.upload_url, { method: 'POST', body: form, signal: controller.signal });
+      } finally {
+        clearTimeout(timer);
+      }
       if (!uploadResp.ok) return { error: `Pinterest rejected the video upload (${uploadResp.status}).` };
     } catch (error) {
       return { error: `Pinterest video upload failed: ${error instanceof Error ? error.message : String(error)}` };
@@ -533,8 +542,13 @@ export class PinterestHandler extends PlatformHandler {
         );
         if (media.status === 'succeeded') return { mediaId: reg.media_id };
         if (media.status === 'failed') return { error: 'Pinterest could not process the uploaded video.' };
-      } catch {
-        // transient read error — keep polling within the cap
+      } catch (error) {
+        // A dead token is not transient: surface it (the text carries the
+        // status, which the publish path's refresh check reads) instead of
+        // polling 24 times and failing as "still processing".
+        const message = error instanceof Error ? error.message : String(error);
+        if (/\((401|403)\)/.test(message)) return { error: message };
+        // otherwise a transient read error — keep polling within the cap
       }
       await new Promise((resolve) => setTimeout(resolve, INTERVAL_MS));
     }
@@ -568,25 +582,21 @@ export class PinterestHandler extends PlatformHandler {
     const fields = this.getPinFields(post);
     if ('error' in fields) return { success: false, error: fields.error };
 
-    const carouselItems = imageUrls.map((url, index) => ({
-      title: fields.title,
-      description: fields.description,
-      link: fields.link || undefined,
-      id: index,
-      media_source: {
-        source_type: 'image_url',
-        url: url,
-      },
-    }));
-
+    // v5 multi-image pin: every image goes in media_source.items. The previous
+    // shape (a single image_url plus a `carousel_data_json` string that is not
+    // a field of POST /pins) published only the first image.
     const pinPayload: Record<string, unknown> = {
       board_id: boardId,
       title: fields.title,
       description: fields.description,
-      carousel_data_json: JSON.stringify({ items: carouselItems }),
       media_source: {
-        source_type: 'image_url',
-        url: imageUrls[0],
+        source_type: 'multiple_image_urls',
+        items: imageUrls.map((url) => ({
+          url,
+          title: fields.title,
+          description: fields.description,
+          ...(fields.link ? { link: fields.link } : {}),
+        })),
       },
     };
 
@@ -945,6 +955,10 @@ export class PinterestHandler extends PlatformHandler {
       };
     } catch (error) {
       this.logger.error({ error }, 'Failed to refresh Pinterest token');
+      // A 5xx, 429 or network failure says nothing about the refresh token;
+      // returning null for it read as "cannot be refreshed" and flagged
+      // reconnect after one blip. Only a rejection returns null.
+      if (this.isTransientRefreshFailure(error)) throw error;
       return null;
     }
   }
@@ -1012,4 +1026,9 @@ export class PinterestHandler extends PlatformHandler {
     // `unsupported` keeps the UI from rendering an empty panel for it.
     return { comments: [], reactions: [], unsupported: true, notice: 'Pinterest does not expose comments through its API.' };
   }
+}
+
+/** Slice by code point so a limit never splits a surrogate pair (emoji). */
+function truncateCodePoints(text: string, max: number): string {
+  return Array.from(text).slice(0, max).join('');
 }

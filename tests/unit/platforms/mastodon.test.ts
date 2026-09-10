@@ -164,6 +164,26 @@ describe('MastodonHandler', () => {
       expect(result.success).toBe(true);
     });
 
+    it('waits for a 202 (still processing) upload before creating the status', async () => {
+      vi.useFakeTimers();
+      try {
+        mockFetch.mockResolvedValueOnce({ ok: true, status: 202, text: async () => '', json: async () => ({ id: 'vid_2', url: null }) });
+        // GET /media/:id — 206 processing (url null), then ready
+        mockFetch.mockResolvedValueOnce(mockFetchJson({ id: 'vid_2', url: null }));
+        mockFetch.mockResolvedValueOnce(mockFetchJson({ id: 'vid_2', url: 'https://mastodon.social/media/vid_2' }));
+        mockFetch.mockResolvedValueOnce(mockFetchJson({ id: 'toot_vid2', url: 'https://mastodon.social/@mastouser/toot_vid2' }));
+
+        const pending = handler.publishPost(makePost({ mediaFiles: [makeVideo()] }), makeChannel());
+        await vi.advanceTimersByTimeAsync(7000);
+        const result = await pending;
+        expect(result.success).toBe(true);
+        expect(String(mockFetch.mock.calls[1][0])).toContain('/api/v1/media/vid_2');
+        expect(String(mockFetch.mock.calls[3][0])).toContain('/api/v1/statuses');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('sends visibility setting', async () => {
       mockFetch.mockResolvedValueOnce(
         mockFetchJson({ id: 'toot_vis', url: 'https://mastodon.social/@mastouser/toot_vis' }),

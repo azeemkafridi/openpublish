@@ -146,6 +146,19 @@ export abstract class PlatformHandler {
    * the poll then marks a post failed that may in fact be live (this happened
    * with TikTok post 989 on 2026-08-01).
    */
+  /**
+   * For token refresh only: was the failure about the network or the
+   * platform being down, rather than about the token? Unlike
+   * isTransientApiError this does NOT default to true — a refresh that fails
+   * for a reason we cannot name (a 200 with no access_token, a parse error)
+   * must return null, never throw, or the sweep would retry it forever.
+   */
+  protected isTransientRefreshFailure(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/API error \((?:429|5\d\d)\)/.test(message)) return true;
+    return /ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|EPIPE|socket hang up|fetch failed|timed out|operation was aborted/i.test(message);
+  }
+
   protected isTransientApiError(error: unknown): boolean {
     const message = error instanceof Error ? error.message : String(error);
     const match = message.match(/API error \((\d{3})\)/);

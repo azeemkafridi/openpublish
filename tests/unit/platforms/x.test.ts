@@ -281,6 +281,59 @@ describe('XHandler', () => {
       expect(mockFetch.mock.calls[0][0]).toBe('https://api.x.com/2/media/upload');
     });
 
+    it('applies library alt text to an uploaded image via /2/media/metadata', async () => {
+      mockFetch.mockResolvedValueOnce(mockFetchJson({ data: { id: 'media_1' } })); // upload
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, text: async () => '' }); // metadata
+      mockFetch.mockResolvedValueOnce(mockFetchJson({ data: { id: 'tweet_1', text: 'x' } }));
+
+      const post = makePost({ mediaFiles: [{ ...makeImage(), altText: 'a dog on a beach' }] });
+      const result = await handler.publishPost(post, makeChannel());
+      expect(result.success).toBe(true);
+      expect(mockFetch.mock.calls[1][0]).toBe('https://api.x.com/2/media/metadata');
+      expect(JSON.parse(mockFetch.mock.calls[1][1].body)).toEqual({
+        id: 'media_1',
+        metadata: { alt_text: { text: 'a dog on a beach' } },
+      });
+    });
+
+    it('still publishes when the alt text call fails', async () => {
+      mockFetch.mockResolvedValueOnce(mockFetchJson({ data: { id: 'media_1' } }));
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 400, text: async () => 'nope' });
+      mockFetch.mockResolvedValueOnce(mockFetchJson({ data: { id: 'tweet_1', text: 'x' } }));
+
+      const result = await handler.publishPost(makePost({ mediaFiles: [{ ...makeImage(), altText: 'x' }] }), makeChannel());
+      expect(result.success).toBe(true);
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it('sends no metadata call without alt text or for video', async () => {
+      mockFetch.mockResolvedValueOnce(mockFetchJson({ data: { id: 'media_1' } }));
+      mockFetch.mockResolvedValueOnce(mockFetchJson({ data: { id: 'tweet_1', text: 'x' } }));
+      await handler.publishPost(makePost({ mediaFiles: [makeImage()] }), makeChannel());
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('surfaces a processing failure reported by STATUS instead of a timeout', async () => {
+      vi.useFakeTimers();
+      try {
+        mockFetch.mockResolvedValueOnce(mockFetchJson({ data: { id: 'v1' } })); // INIT
+        mockFetch.mockResolvedValueOnce({ ok: true, text: async () => '' }); // APPEND
+        mockFetch.mockResolvedValueOnce(mockFetchJson({ data: { id: 'v1', processing_info: { state: 'pending', check_after_secs: 1 } } })); // FINALIZE
+        mockFetch.mockResolvedValueOnce(mockFetchJson({ data: { id: 'v1', processing_info: { state: 'failed', error: { message: 'bad codec' } } } })); // STATUS
+
+        const pending = handler.publishPost(makePost({ mediaFiles: [makeVideo()] }), makeChannel());
+        await vi.advanceTimersByTimeAsync(2000);
+        const result = await pending;
+        expect(result.success).toBe(false);
+        expect(result.error).toMatch(/bad codec/);
+        expect(result.error).not.toMatch(/timed out/);
+        // The STATUS request carries its own timeout signal.
+        expect(mockFetch.mock.calls[3][1].signal).toBeInstanceOf(AbortSignal);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('surfaces a clear error when media upload returns an empty body (no JSON crash)', async () => {
       // Regression: the retired v1.1 endpoint returned empty bodies and response.json() threw
       // the opaque "Unexpected end of JSON input". The defensive parser must report the status.
@@ -503,5 +556,39 @@ describe('XHandler', () => {
       expect(checkXBudgetMock).toHaveBeenCalledWith(7, 'free', 200);
       expect(mockFetch).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('XHandler cost context isolation', () => {
+  it('does not bill a concurrent unrelated call to the org whose tweet is in flight', async () => {
+    const { trackXApiCall } = await import('@/lib/platforms/x-usage');
+    (trackXApiCall as any).mockClear?.();
+    checkXBudgetMock.mockResolvedValue({ allowed: true });
+    getOrgPlanMock.mockResolvedValue('pro');
+
+    let releaseTweet!: () => void;
+    const tweetGate = new Promise<void>((r) => { releaseTweet = r; });
+    mockFetch.mockImplementation(async (url: string) => {
+      if (String(url).includes('/2/tweets')) {
+        await tweetGate;
+        return mockFetchJson({ data: { id: 't1', text: 'hi' } });
+      }
+      if (String(url).includes('/2/oauth2/token')) {
+        return mockFetchJson({ access_token: 'new', refresh_token: 'r2', expires_in: 7200 });
+      }
+      return mockFetchJson({});
+    });
+
+    const h = new XHandler();
+    const publishing = h.publishPost(makePost(), makeChannel({ organizationId: 42 }));
+    // Another org's token refresh runs on the same singleton while the tweet awaits.
+    await h.refreshToken('old-refresh');
+    expect(trackXApiCall).not.toHaveBeenCalled();
+
+    releaseTweet();
+    const result = await publishing;
+    expect(result.success).toBe(true);
+    expect(trackXApiCall).toHaveBeenCalledTimes(1);
+    expect((trackXApiCall as any).mock.calls[0][0]).toBe(42);
   });
 });

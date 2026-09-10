@@ -10,6 +10,7 @@ import type {
   EngagementData,
   EngagementComment,
   EngagementReaction,
+  EngagementOptions,
 } from './types';
 
 // Tumblr uses the www host for the authorize redirect and api.tumblr.com for
@@ -165,6 +166,10 @@ export class TumblrHandler extends PlatformHandler {
       return { ...token, refreshToken: token.refreshToken || refreshToken };
     } catch (error) {
       this.logger.error({ error }, 'Tumblr token refresh failed');
+      // A 5xx, 429 or network failure says nothing about the refresh token;
+      // returning null for it read as "cannot be refreshed" and flagged
+      // reconnect after one blip. Only a rejection returns null.
+      if (this.isTransientRefreshFailure(error)) throw error;
       return null;
     }
   }
@@ -266,9 +271,19 @@ export class TumblrHandler extends PlatformHandler {
         content,
         state: 'published',
       };
-      if (settings.tags?.length) {
+      // The composer sends raw comma-split segments; API callers may send the
+      // comma-separated string Tumblr itself uses. Accept both — a string here
+      // used to throw at publish time, after the create request had accepted it.
+      const rawTags: string[] = Array.isArray(settings.tags)
+        ? settings.tags
+        : typeof settings.tags === 'string' ? settings.tags.split(',') : [];
+      const tags = rawTags
+        .filter((t): t is string => typeof t === 'string')
+        .map((t) => t.trim().replace(/^#/, '').trim())
+        .filter(Boolean);
+      if (tags.length) {
         // The v2 API takes tags as a comma-separated string, not an array.
-        payload.tags = settings.tags.map((t) => t.trim().replace(/^#/, '').trim()).filter(Boolean).join(',');
+        payload.tags = tags.join(',');
       }
       if (settings.sourceUrl) {
         payload.source_url = this.normalizeUrl(settings.sourceUrl);
@@ -364,14 +379,18 @@ export class TumblrHandler extends PlatformHandler {
   ): TumblrContentBlock[] {
     const content: TumblrContentBlock[] = [];
 
-    if (settings.title) {
-      content.push({ type: 'text', subtype: 'heading1', text: settings.title });
+    // Whitespace-only values come from a field the user cleared with the space
+    // bar; a blank heading is noise and a blank link is a rejected block.
+    const title = settings.title?.trim();
+    if (title) {
+      content.push({ type: 'text', subtype: 'heading1', text: title });
     }
 
     content.push(...this.textBlocks(post.content || ''));
 
-    if (settings.link) {
-      content.push({ type: 'link', url: this.normalizeUrl(settings.link) });
+    const link = settings.link?.trim();
+    if (link) {
+      content.push({ type: 'link', url: this.normalizeUrl(link) });
     }
 
     for (const [index, item] of media.entries()) {
@@ -456,7 +475,9 @@ export class TumblrHandler extends PlatformHandler {
     }
     if (/\b8022\b/.test(message)) return 'This Tumblr blog\'s queue is full.';
     if (/\b8001\b/.test(message)) return 'Tumblr rejected the post content format.';
-    if (/\(401\)/.test(message)) return 'Tumblr access expired. Please reconnect the account.';
+    // Keep "401" in the text: the publish path only tries a token refresh when
+    // the error names the status, and Tumblr access tokens last 42 minutes.
+    if (/\(401\)/.test(message)) return 'Tumblr rejected the access token (401). Reconnect the account if this keeps happening.';
     if (/\(429\)/.test(message)) return 'Tumblr rate limit reached. This post will be retried.';
     return message;
   }
@@ -478,12 +499,16 @@ export class TumblrHandler extends PlatformHandler {
   async getPostEngagement(
     channel: ChannelData,
     platformPostId: string,
-    opts?: { commentsLimit?: number; reactionsLimit?: number },
+    opts?: EngagementOptions,
   ): Promise<EngagementData> {
     if (!channel.accessToken) {
       return { comments: [], reactions: [], notice: 'No access token', commentsNotice: 'No access token' };
     }
-    const blogName = channel.accountId;
+    // Post ids are scoped to the blog they were published on. A post sent to a
+    // side blog lives at https://www.tumblr.com/<blog>/<id>, so read the blog
+    // from the stored URL and fall back to the primary blog.
+    const fromUrl = opts?.platformUrl?.match(/tumblr\.com\/([a-z0-9-]+)\/\d+(?:\/|$)/i)?.[1];
+    const blogName = fromUrl ?? channel.accountId;
     if (!blogName) {
       return { comments: [], reactions: [], notice: 'Missing Tumblr blog name', commentsNotice: 'Missing Tumblr blog name' };
     }

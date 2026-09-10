@@ -154,6 +154,10 @@ export class SnapchatHandler extends PlatformHandler {
       return { ...token, refreshToken: token.refreshToken || refreshToken };
     } catch (error) {
       this.logger.error({ error }, 'Snapchat token refresh failed');
+      // A 5xx, 429 or network failure says nothing about the refresh token;
+      // returning null for it read as "cannot be refreshed" and flagged
+      // reconnect after one blip. Only a rejection returns null.
+      if (this.isTransientRefreshFailure(error)) throw error;
       return null;
     }
   }
@@ -559,7 +563,9 @@ export class SnapchatHandler extends PlatformHandler {
 
   private friendlyError(message: string): string {
     if (/\(401\)|unauthorized/i.test(message)) {
-      return 'Snapchat access expired. Please reconnect the account.';
+      // Keep "401" in the text: the publish path only tries a token refresh
+      // when the error names the status.
+      return 'Snapchat rejected the access token (401). Reconnect the account if this keeps happening.';
     }
     if (/\(403\)/.test(message)) {
       return 'Snapchat rejected the request. The public profile may not have API posting enabled.';

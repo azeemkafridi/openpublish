@@ -229,6 +229,32 @@ describe('BlueskyHandler', () => {
       expect(recordBody.record.embed.external.uri).toBe('https://example.com');
     });
 
+    it('facets: trailing punctuation excluded, parenthesised mention, hashtag tag facet', async () => {
+      // resolveHandle for the mention, then createRecord
+      mockFetch.mockResolvedValueOnce(mockFetchJson({ did: 'did:plc:alice' }));
+      mockFetch.mockResolvedValueOnce(mockFetchJson({ uri: 'at://did:plc:testuser123/app.bsky.feed.post/f2', cid: 'bafy2' }));
+
+      const text = 'Read https://example.com/page. cc (@alice.bsky.social) #bluesky';
+      await handler.publishPost(makePost({ content: text }), makeChannel());
+
+      const resolveUrl = String(mockFetch.mock.calls[0][0]);
+      expect(resolveUrl).toContain('handle=alice.bsky.social');
+      expect(resolveUrl).not.toContain('%40');
+
+      const record = JSON.parse(mockFetch.mock.calls[1][1].body).record;
+      const enc = new TextEncoder();
+      const sliceOf = (f: any) => new TextDecoder().decode(enc.encode(text).slice(f.index.byteStart, f.index.byteEnd));
+      const link = record.facets.find((f: any) => f.features[0].$type === 'app.bsky.richtext.facet#link');
+      const mention = record.facets.find((f: any) => f.features[0].$type === 'app.bsky.richtext.facet#mention');
+      const tag = record.facets.find((f: any) => f.features[0].$type === 'app.bsky.richtext.facet#tag');
+      expect(link.features[0].uri).toBe('https://example.com/page');
+      expect(sliceOf(link)).toBe('https://example.com/page');
+      expect(sliceOf(mention)).toBe('@alice.bsky.social');
+      expect(mention.features[0].did).toBe('did:plc:alice');
+      expect(tag.features[0].tag).toBe('bluesky');
+      expect(sliceOf(tag)).toBe('#bluesky');
+    });
+
     it('detects URL facets in text', async () => {
       mockFetch.mockResolvedValueOnce(
         mockFetchJson({

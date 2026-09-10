@@ -268,6 +268,21 @@ export class MastodonHandler extends PlatformHandler {
     return null;
   }
 
+  /**
+   * fetch with a 30 s timeout for the write paths that bypass fetchJson
+   * because they read the status themselves. A hung instance used to block
+   * the status creation step indefinitely.
+   */
+  private async timedFetch(url: string, init: RequestInit): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   private async uploadMedia(
     localPath: string,
     mimeType: string,
@@ -295,6 +310,22 @@ export class MastodonHandler extends PlatformHandler {
     }
 
     const data = (await response.json()) as { id: string; url: string };
+    // 202 means the attachment (every video) is still being processed; a
+    // status created now is refused with "Cannot attach files that have not
+    // finished processing" — a permanent failure for every Mastodon video.
+    // GET /api/v1/media/:id answers 206 while processing and 200 when ready.
+    if (response.status === 202) {
+      const deadline = Date.now() + 5 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const check = await this.fetchJson<{ id: string; url?: string | null }>(
+          `${apiBase}/v1/media/${data.id}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        ).catch(() => null);
+        if (check && check.url) return data.id;
+      }
+      throw new Error('Mastodon is still processing the uploaded media; try again later');
+    }
     return data.id;
   }
 
@@ -308,7 +339,7 @@ export class MastodonHandler extends PlatformHandler {
 
     try {
       const url = `https://${instanceUrl}/api/v1/statuses`;
-      const response = await fetch(url, {
+      const response = await this.timedFetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${channel.accessToken}`,

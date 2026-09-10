@@ -46,10 +46,33 @@ export function countsUrlsAsFixedLength(platform: string): boolean {
 export function platformLength(text: string, platform: string): number {
   if (!text) return 0;
   if (!URL_WEIGHTED_PLATFORMS.has(platform)) return text.length;
+  const measure = platform === 'x' ? xWeightedLength : (t: string) => t.length;
   let delta = 0;
   for (const match of text.match(URL_REGEX) ?? []) {
     const url = match.replace(/[.,;:!?)]+$/, '');
-    delta += URL_CHAR_WEIGHT - url.length;
+    delta += URL_CHAR_WEIGHT - measure(url);
   }
-  return text.length + delta;
+  return measure(text) + delta;
+}
+
+/**
+ * X's weighted count: code points in the Latin, Latin-extended, Greek,
+ * Cyrillic, Hebrew, Arabic (up to U+10FF) and general-punctuation ranges
+ * count 1, everything else — CJK, emoji, most other scripts — counts 2,
+ * measured on the NFC form. `text.length` undercounted a 200-character CJK
+ * post as 200 where X sees 400 and rejects it after the media had uploaded.
+ * https://docs.x.com/fundamentals/counting-characters
+ */
+export function xWeightedLength(text: string): number {
+  let n = 0;
+  for (const ch of text.normalize('NFC')) {
+    const cp = ch.codePointAt(0) ?? 0;
+    const light =
+      cp <= 4351 ||
+      (cp >= 8192 && cp <= 8205) ||
+      (cp >= 8208 && cp <= 8223) ||
+      (cp >= 8242 && cp <= 8247);
+    n += light ? 1 : 2;
+  }
+  return n;
 }

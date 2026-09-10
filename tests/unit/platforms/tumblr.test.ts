@@ -258,6 +258,33 @@ describe('TumblrHandler publishPost', () => {
     expect(JSON.parse(mockFetch.mock.calls[0][1].body).tags).toBe('art,design');
   });
 
+  it('accepts tags as the comma-separated string Tumblr itself uses (API callers)', async () => {
+    // Used to throw "settings.tags.map is not a function" at publish time,
+    // after the create request had already accepted the body.
+    mockFetch.mockResolvedValueOnce(jsonResponse(OK_CREATE));
+
+    const result = await new TumblrHandler().publishPost(
+      makePost({ platformSpecific: { tags: '#art, design ,, ' } as any }),
+      makeChannel(),
+    );
+
+    expect(result.success).toBe(true);
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).tags).toBe('art,design');
+  });
+
+  it('drops a whitespace-only title and link instead of sending blank blocks', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(OK_CREATE));
+
+    await new TumblrHandler().publishPost(
+      makePost({ platformSpecific: { 1: { title: '   ', link: '  ' } } }),
+      makeChannel(),
+    );
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.content.some((b: any) => b.subtype === 'heading1')).toBe(false);
+    expect(body.content.some((b: any) => b.type === 'link')).toBe(false);
+  });
+
   it('publishes to the blog chosen per post, overriding the channel default', async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(OK_CREATE));
 
@@ -363,6 +390,9 @@ describe('TumblrHandler publishPost', () => {
       expect(result.success).toBe(false);
       expect(result.authExpired).toBe(true);
       expect(result.error).toMatch(/reconnect/i);
+      // The publish path only attempts a token refresh when the error names
+      // the status; Tumblr access tokens last 42 minutes, so this must match.
+      expect(result.error).toMatch(/\b401\b/);
     });
 
     it('translates the daily-posting-limit code into actionable copy', async () => {
@@ -392,5 +422,27 @@ describe('TumblrHandler publishPost', () => {
       expect(result.success).toBe(false);
       expect(result.error).toMatch(/no post id/i);
     });
+  });
+});
+
+describe('TumblrHandler engagement', () => {
+  it('reads notes from the blog in the post URL, not the primary blog', async () => {
+    // Post ids are scoped to the blog they were published on; a side-blog
+    // post asked of the primary blog returns nothing.
+    mockFetch.mockResolvedValueOnce(jsonResponse({ response: { notes: [], total_notes: 0 } }));
+
+    await new TumblrHandler().getPostEngagement(makeChannel(), '987654321', {
+      platformUrl: 'https://www.tumblr.com/sideblog/987654321',
+    });
+
+    expect(mockFetch.mock.calls[0][0]).toContain('/blog/sideblog/notes?id=987654321');
+  });
+
+  it('falls back to the primary blog without a stored URL', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ response: { notes: [], total_notes: 0 } }));
+
+    await new TumblrHandler().getPostEngagement(makeChannel(), '987654321');
+
+    expect(mockFetch.mock.calls[0][0]).toContain('/blog/myblog/notes?id=987654321');
   });
 });

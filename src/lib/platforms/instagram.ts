@@ -200,6 +200,10 @@ export class InstagramHandler extends PlatformHandler {
       };
     } catch (error) {
       this.logger.error({ error }, 'Failed to refresh Instagram token');
+      // A 5xx, 429 or network failure says nothing about the refresh token;
+      // returning null for it read as "cannot be refreshed" and flagged
+      // reconnect after one blip. Only a rejection returns null.
+      if (this.isTransientRefreshFailure(error)) throw error;
       return null;
     }
   }
@@ -314,7 +318,7 @@ export class InstagramHandler extends PlatformHandler {
       if (status.status_code === 'ERROR' || status.status_code === 'EXPIRED') {
         return {
           status: 'failed',
-          message: `Container status: ${status.status_code}`,
+          message: `Container status: ${status.status_code}${status.status ? ` — ${status.status}` : ''}`,
         };
       }
 
@@ -327,6 +331,12 @@ export class InstagramHandler extends PlatformHandler {
       // only a 4xx rejection is terminal (see isTransientApiError).
       if (this.isTransientApiError(error)) throw error;
       const message = error instanceof Error ? error.message : String(error);
+      // Code 9007 / 2207027: the container is FINISHED but media_publish
+      // says "Media ID is not available" — Meta's advice is to wait a
+      // minute and retry, and the container stays publishable for ~24h.
+      if (/media id is not available/i.test(message)) {
+        return { status: 'processing', message };
+      }
       return { status: 'failed', message };
     }
   }
@@ -774,7 +784,7 @@ export class InstagramHandler extends PlatformHandler {
   ): Promise<ContainerStatusResponse> {
     const url =
       `${GRAPH_URL}/${containerId}?` +
-      `fields=status_code` +
+      `fields=status_code,status` +
       `&access_token=${accessToken}`;
 
     return this.fetchJson<ContainerStatusResponse>(url);
@@ -793,7 +803,7 @@ export class InstagramHandler extends PlatformHandler {
 
       if (status.status_code === 'ERROR' || status.status_code === 'EXPIRED') {
         throw new Error(
-          `Instagram media container ${containerId} failed with status: ${status.status_code}`,
+          `Instagram media container ${containerId} failed with status: ${status.status_code}${status.status ? ` — ${status.status}` : ''}`,
         );
       }
 
@@ -806,8 +816,11 @@ export class InstagramHandler extends PlatformHandler {
       await this.sleep(POLL_DELAYS_MS[attempt] ?? POLL_FALLBACK_MS);
     }
 
+    // Nothing has been published: the container is still transcoding. Worded
+    // as a retry, not a timeout — "timed out" classifies as an unknown
+    // outcome and marked the post unconfirmed with no media_publish sent.
     throw new Error(
-      `Instagram media container ${containerId} timed out after ${POLL_MAX_ATTEMPTS} attempts`,
+      `Instagram is still processing media container ${containerId} after ${POLL_MAX_ATTEMPTS} checks; try again later`,
     );
   }
 

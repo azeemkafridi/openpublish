@@ -33,6 +33,7 @@ const RECONNECT_PATTERNS: RegExp[] = [
   /revoked[_\s]?access[_\s]?token/i, // Bluesky/Meta REVOKED_ACCESS_TOKEN
   /OAuthException/i,
   /error validating access token/i, // Meta Graph (FB/IG/Threads) code 190
+  /invalid oauth (?:2\.0 )?access token|cannot parse access token/i, // Meta code 190, other phrasings
   /please re-?authenticate|please reconnect/i, // our own friendly auth messages
 ];
 

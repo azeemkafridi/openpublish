@@ -1,4 +1,5 @@
 import { randomBytes, createHash } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { readFileSync, openSync, readSync, closeSync, statSync } from 'node:fs';
 import { PlatformHandler } from './base';
 import type {
@@ -93,7 +94,14 @@ interface XMediaResponse {
 }
 
 export class XHandler extends PlatformHandler {
-  private costContext: CostContext | null = null;
+  /**
+   * Billing context for the call in flight, scoped to the async chain that
+   * opened it. The registry holds ONE XHandler per process, so an instance
+   * field here leaked: a token refresh or account lookup that ran while some
+   * other org's tweet was awaiting its response read that org's context and
+   * was billed to it as a second tweet.
+   */
+  private readonly costContext = new AsyncLocalStorage<CostContext>();
 
   constructor() {
     super(config);
@@ -101,15 +109,10 @@ export class XHandler extends PlatformHandler {
 
   /**
    * Wrap a billable API call so it gets cost-tracked after success.
-   * The override of fetchJson() reads `this.costContext` set here.
+   * The override of fetchJson() reads the context set here.
    */
-  private async withCostContext<T>(ctx: CostContext, fn: () => Promise<T>): Promise<T> {
-    this.costContext = ctx;
-    try {
-      return await fn();
-    } finally {
-      this.costContext = null;
-    }
+  private withCostContext<T>(ctx: CostContext, fn: () => Promise<T>): Promise<T> {
+    return this.costContext.run(ctx, fn);
   }
 
   /**
@@ -153,7 +156,7 @@ export class XHandler extends PlatformHandler {
   }
 
   protected override async fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> {
-    const ctx = this.costContext;
+    const ctx = this.costContext.getStore();
     const data = await super.fetchJson<T>(url, options);
 
     if (ctx && ctx.orgId) {
@@ -359,6 +362,7 @@ export class XHandler extends PlatformHandler {
         } else {
           mediaId = await this.simpleUpload(file.localPath, channel.accessToken, channel.organizationId);
         }
+        await this.applyAltText(mediaId, file, channel.accessToken);
 
         mediaIds.push(mediaId);
         this.logger.debug({ mediaId, mimeType: file.mimeType }, 'Media uploaded to X');
@@ -470,6 +474,7 @@ export class XHandler extends PlatformHandler {
           const mediaId = isVideo || isLarge
             ? await this.chunkedUpload(file.localPath, file.mimeType, file.sizeBytes, channel.accessToken, channel.organizationId)
             : await this.simpleUpload(file.localPath, channel.accessToken, channel.organizationId);
+          await this.applyAltText(mediaId, file, channel.accessToken);
           mediaIds.push(mediaId);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -682,6 +687,10 @@ export class XHandler extends PlatformHandler {
       };
     } catch (error) {
       this.logger.error({ error }, 'Failed to refresh X token');
+      // A 5xx, 429 or network failure says nothing about the refresh token;
+      // returning null for it read as "cannot be refreshed" and flagged
+      // reconnect after one blip. Only a rejection returns null.
+      if (this.isTransientRefreshFailure(error)) throw error;
       return null;
     }
   }
@@ -729,6 +738,37 @@ export class XHandler extends PlatformHandler {
         signal: controller.signal,
       });
       return await this.parseMediaResponse(res, step);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Attach the library alt text to an uploaded image (v2 POST /2/media/metadata).
+   * Images only — X has no alt text on video — and best-effort: a post without
+   * its alt text is still the post the user wrote, so a metadata failure is
+   * logged rather than failing the publish. Was never sent at all before, while
+   * every other platform that supports alt text applied it.
+   */
+  private async applyAltText(mediaId: string, file: MediaFileData, accessToken: string): Promise<void> {
+    const text = file.altText?.trim();
+    if (!text || file.mimeType.startsWith('video/')) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000);
+    try {
+      const res = await fetch(`${API_BASE}/media/metadata`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        // X caps alt text at 1000 characters.
+        body: JSON.stringify({ id: mediaId, metadata: { alt_text: { text: text.slice(0, 1000) } } }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        this.logger.warn({ mediaId, status: res.status, body: errText.slice(0, 200) }, 'X alt text was not applied');
+      }
+    } catch (err) {
+      this.logger.warn({ err, mediaId }, 'X alt text was not applied');
     } finally {
       clearTimeout(timer);
     }
@@ -976,21 +1016,38 @@ export class XHandler extends PlatformHandler {
     accessToken: string,
   ): Promise<void> {
     let info = processingInfo;
-    const maxAttempts = 60;
+    // Bounded by wall clock, not by iteration count: X's check_after_secs is
+    // not clamped by us, so 60 iterations of a large hint could hold a publish
+    // job for hours. Each STATUS request also gets its own timeout — it was
+    // the one network call in this file without one.
+    const MAX_WAIT_MS = 10 * 60 * 1000;
+    const STATUS_TIMEOUT_MS = 30 * 1000;
+    const started = Date.now();
     let attempt = 0;
 
-    while (info.state !== 'succeeded' && attempt < maxAttempts) {
-      if (info.state === 'failed') {
-        throw new Error(`Media processing failed: ${info.error?.message || 'Unknown error'}`);
-      }
+    const failed = (pi: XProcessingInfo) => {
+      throw new Error(`Media processing failed: ${pi.error?.message || 'Unknown error'}`);
+    };
 
-      const waitSecs = info.check_after_secs || 5;
+    while (info.state !== 'succeeded') {
+      if (info.state === 'failed') failed(info);
+      if (Date.now() - started > MAX_WAIT_MS) throw new Error('Media processing timed out');
+
+      const waitSecs = Math.min(30, Math.max(1, info.check_after_secs || 5));
       await new Promise((resolve) => setTimeout(resolve, waitSecs * 1000));
 
       const statusUrl = `${MEDIA_UPLOAD_URL}?command=STATUS&media_id=${mediaId}`;
-      const statusRes = await fetch(statusUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS);
+      let statusRes: Response;
+      try {
+        statusRes = await fetch(statusUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
 
       const statusData = await this.parseMediaResponse(statusRes, 'STATUS');
       const pi = statusData.data?.processing_info;
@@ -1000,10 +1057,9 @@ export class XHandler extends PlatformHandler {
 
       this.logger.debug({ mediaId, state: info.state, attempt }, 'Polling upload status');
     }
-
-    if (attempt >= maxAttempts) {
-      throw new Error('Media processing timed out');
-    }
+    // A `failed` reported on the final poll must surface X's message, not a
+    // timeout.
+    if (info.state === 'failed') failed(info);
   }
 
   /** Both gates that can leave X engagement empty, quoted verbatim to the user. */

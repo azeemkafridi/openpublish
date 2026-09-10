@@ -251,6 +251,10 @@ export class ThreadsHandler extends PlatformHandler {
       };
     } catch (error) {
       this.logger.error({ error }, 'Failed to refresh Threads token');
+      // A 5xx, 429 or network failure says nothing about the refresh token;
+      // returning null for it read as "cannot be refreshed" and flagged
+      // reconnect after one blip. Only a rejection returns null.
+      if (this.isTransientRefreshFailure(error)) throw error;
       return null;
     }
   }
@@ -388,6 +392,9 @@ export class ThreadsHandler extends PlatformHandler {
       // only a 4xx rejection is terminal (see isTransientApiError).
       if (this.isTransientApiError(error)) throw error;
       const message = error instanceof Error ? error.message : String(error);
+      if (/media id is not available/i.test(message)) {
+        return { status: 'processing', message };
+      }
       return { status: 'failed', message };
     }
   }
@@ -836,8 +843,10 @@ export class ThreadsHandler extends PlatformHandler {
       await this.sleep(POLL_DELAYS_MS[attempt] ?? POLL_FALLBACK_MS);
     }
 
+    // See the Instagram counterpart: nothing was published, so this must
+    // classify as a retry rather than an unknown outcome.
     throw new Error(
-      `Threads container ${containerId} timed out after ${POLL_MAX_ATTEMPTS} attempts`,
+      `Threads is still processing container ${containerId} after ${POLL_MAX_ATTEMPTS} checks; try again later`,
     );
   }
 
