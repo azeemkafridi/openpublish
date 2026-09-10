@@ -268,7 +268,7 @@ export class TumblrHandler extends PlatformHandler {
       };
       if (settings.tags?.length) {
         // The v2 API takes tags as a comma-separated string, not an array.
-        payload.tags = settings.tags.map((t) => t.replace(/^#/, '').trim()).filter(Boolean).join(',');
+        payload.tags = settings.tags.map((t) => t.trim().replace(/^#/, '').trim()).filter(Boolean).join(',');
       }
       if (settings.sourceUrl) {
         payload.source_url = this.normalizeUrl(settings.sourceUrl);

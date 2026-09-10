@@ -1676,11 +1676,16 @@ export function PlatformOptions({
                   <input
                     className="input"
                     type="text"
-                    value={(t.tags ?? []).join(', ')}
+                    value={(t.tags ?? []).join(',')}
                     placeholder="art, design, photography"
                     onChange={(e) =>
                       handleTumblrPatch(ch.channelId, {
-                        tags: e.target.value.split(',').map((s) => s.trim().replace(/^#/, '')).filter(Boolean),
+                        // Preserve the raw segments while this controlled input is
+                        // being edited. Trimming/filtering here removes a trailing
+                        // comma or space on the rerender, making it impossible to
+                        // type the next tag or a multi-word tag. The Tumblr handler
+                        // normalizes these segments immediately before publishing.
+                        tags: e.target.value.split(','),
                       })
                     }
                     style={{ fontSize: 'var(--text-sm)' }}

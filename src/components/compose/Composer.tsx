@@ -326,9 +326,10 @@ export default function Composer({ automationMode: automationModeProp, userRole 
   const [firstComment, setFirstComment] = useState('');
   const [autoPlugEnabled, setAutoPlugEnabled] = useState(false);
   const [autoPlugText, setAutoPlugText] = useState('');
-  const [autoPlugThreshold, setAutoPlugThreshold] = useState(50);
+  // '' while the user has cleared the field; falls back to the default at blur and submit.
+  const [autoPlugThreshold, setAutoPlugThreshold] = useState<number | ''>(50);
   const [autoRepostEnabled, setAutoRepostEnabled] = useState(false);
-  const [autoRepostThreshold, setAutoRepostThreshold] = useState(100);
+  const [autoRepostThreshold, setAutoRepostThreshold] = useState<number | ''>(100);
   const [preserveMedia, setPreserveMedia] = useState(true); // keep media by default (reclaimed by 3-month retention)
   const [platformContent, setPlatformContent] = useState<Record<string, string>>({});
   const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
@@ -1035,9 +1036,9 @@ export default function Composer({ automationMode: automationModeProp, userRole 
         threadParts: isThreadFormat ? threadParts : undefined,
         autoPlugEnabled: autoPlugEnabled || undefined,
         autoPlugText: autoPlugEnabled ? autoPlugText.trim() || undefined : undefined,
-        autoPlugThreshold: autoPlugEnabled ? autoPlugThreshold : undefined,
+        autoPlugThreshold: autoPlugEnabled ? (autoPlugThreshold || 50) : undefined,
         autoRepostEnabled: autoRepostEnabled || undefined,
-        autoRepostThreshold: autoRepostEnabled ? autoRepostThreshold : undefined,
+        autoRepostThreshold: autoRepostEnabled ? (autoRepostThreshold || 100) : undefined,
         deleteMediaAfterPublish: !preserveMedia,
         requestApproval: requestApproval || undefined,
       };
@@ -1194,9 +1195,9 @@ export default function Composer({ automationMode: automationModeProp, userRole 
         threadParts: isThreadFormat ? threadParts : undefined,
         autoPlugEnabled: autoPlugEnabled || undefined,
         autoPlugText: autoPlugEnabled ? autoPlugText.trim() || undefined : undefined,
-        autoPlugThreshold: autoPlugEnabled ? autoPlugThreshold : undefined,
+        autoPlugThreshold: autoPlugEnabled ? (autoPlugThreshold || 50) : undefined,
         autoRepostEnabled: autoRepostEnabled || undefined,
-        autoRepostThreshold: autoRepostEnabled ? autoRepostThreshold : undefined,
+        autoRepostThreshold: autoRepostEnabled ? (autoRepostThreshold || 100) : undefined,
         deleteMediaAfterPublish: !preserveMedia,
       };
 
@@ -1519,7 +1520,8 @@ export default function Composer({ automationMode: automationModeProp, userRole 
                         className="input"
                         min={1}
                         value={autoPlugThreshold}
-                        onChange={(e) => setAutoPlugThreshold(Math.max(1, parseInt(e.target.value) || 50))}
+                        onChange={(e) => setAutoPlugThreshold(e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1))}
+                        onBlur={() => { if (autoPlugThreshold === '') setAutoPlugThreshold(50); }}
                         style={{ width: '80px', fontSize: 'var(--text-sm)', textAlign: 'center' }}
                       />
                       <span style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-500)' }}>likes</span>
@@ -1545,7 +1547,8 @@ export default function Composer({ automationMode: automationModeProp, userRole 
                       className="input"
                       min={1}
                       value={autoRepostThreshold}
-                      onChange={(e) => setAutoRepostThreshold(Math.max(1, parseInt(e.target.value) || 100))}
+                      onChange={(e) => setAutoRepostThreshold(e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1))}
+                      onBlur={() => { if (autoRepostThreshold === '') setAutoRepostThreshold(100); }}
                       style={{ width: '80px', fontSize: 'var(--text-sm)', textAlign: 'center' }}
                     />
                     <span style={{ fontSize: 'var(--text-xs)', color: 'var(--stone-500)' }}>likes</span>
