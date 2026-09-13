@@ -6,6 +6,7 @@
   <p><strong>Self-hosted social media scheduling for 16 platforms. Compose once, publish everywhere, own your data.</strong></p>
 
   <p>
+    <img src="https://img.shields.io/badge/Status-Archived-critical.svg" alt="Status: archived, no longer maintained">
     <img src="https://img.shields.io/badge/License-AGPL--3.0-black.svg" alt="License: AGPL-3.0">
     <img src="https://img.shields.io/badge/Platforms-16-black.svg" alt="16 platforms">
     <img src="https://img.shields.io/badge/Self--hosted-Docker-black.svg" alt="Self-hosted with Docker">
@@ -46,6 +47,27 @@
   <br/>
   <br/>
 </div>
+
+> [!IMPORTANT]
+> ## This project is no longer maintained
+>
+> openPublish is archived as of **14 September 2026**. There will be no further
+> releases, and issues and pull requests are no longer being reviewed.
+>
+> Keeping two separate applications in step turned out to be more work than one
+> team can carry, so the effort now goes into
+> **[BulkPublish](https://www.bulkpublish.com)** — the hosted product this was
+> extracted from. It is actively developed and well ahead of the code here: no
+> developer apps to register or get reviewed, bulk composing, recurring
+> schedules, RSS-driven posting, link shortening with click tracking, an inbox
+> for comments and DMs, team review and approval, a REST API with maintained
+> SDKs and integrations, and a mobile app. There is a free
+> plan, so you can try it without paying: **https://www.bulkpublish.com**
+>
+> The code stays here, under AGPL-3.0, and you are welcome to keep running or
+> forking it — but treat it as a snapshot. It will not get platform API changes,
+> security fixes or new features, and `ENGINE=cloud` will drift out of step with
+> the BulkPublish API over time.
 
 **openPublish** is a free, open source social media scheduler you host yourself. Write a post once, tailor it per network, schedule it on a calendar, and let the background workers publish it to X (Twitter), Instagram, TikTok, LinkedIn, YouTube, Facebook, Threads, Bluesky, Mastodon, Pinterest, Reddit, Discord, Telegram, Tumblr, Snapchat and Google Business Profile.
 
@@ -175,6 +197,11 @@ ENGINE=cloud
 BULKPUBLISH_API_KEY=bp_...
 ```
 
+> **Archived-project note:** cloud mode is not maintained here any more. It talks
+> to a live API that keeps evolving, so expect it to break eventually. If cloud
+> publishing is what you want, use [BulkPublish](https://www.bulkpublish.com)
+> directly — it is the same publishing core with the parts this repo never got.
+
 You keep the self-hosted UI; channel connections are made once in the BulkPublish dashboard and then appear in your instance automatically. Local workers stay idle in this mode.
 
 ## Supported platforms
@@ -246,6 +273,13 @@ One Docker image runs as `APP_MODE=web`, `worker`, or `all`.
 
 ## FAQ
 
+**Is this still maintained?**
+No. The project is archived as of 14 September 2026 and gets no further releases.
+Development continues on the hosted product it came from,
+[BulkPublish](https://www.bulkpublish.com), which has a free plan. The answers
+below describe openPublish as it stands, for anyone running or forking the
+snapshot.
+
 **Is there a good open source alternative to Buffer or Hootsuite?**
 That is what openPublish is. It covers the parts most people actually use — a multi-platform composer, a scheduling calendar, a posting queue, and engagement analytics — without per-seat pricing. You host it, so the only cost is your server.
 
@@ -272,7 +306,12 @@ Yes. Set `BASE_URL` to your public HTTPS URL and point your proxy at port 4321.
 
 ## Contributing
 
-Issues and pull requests are welcome. Before opening a PR:
+**This repository is archived — issues and pull requests are not being reviewed.**
+Fork it and carry it forward if you want to; the checks below are what CI used to
+run, kept here for anyone doing that. For the maintained product, see
+[BulkPublish](https://www.bulkpublish.com).
+
+If you are working in a fork:
 
 ```bash
 npx tsc --noEmit --skipLibCheck   # type check
